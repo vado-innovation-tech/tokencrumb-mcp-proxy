@@ -253,16 +253,16 @@ fn scope_arg_parsing() {
 /// A quote inside a value must stay a value, never become Datalog syntax.
 #[test]
 fn injected_fact_string_is_parameterized() {
+    // Parameterized emission keeps a quoted value inside one term, but Biscuit prints
+    // it unescaped, so the rendered block — which identity is read from — would be
+    // ambiguous. Since 0.3.0 such a mandate is refused at forge time (and by the proxy).
     let w = World::new();
-    let token = forge(
+    let refused = biscuit_ops::forge(
         &w.authority.private_str,
-        ForgeRequest {
+        &ForgeRequest {
             facts: vec![r#"tag("weird \"quoted\" value")"#.into()],
             ..mandate("a", "modify_incident", "write", 60, 1)
         },
     );
-    let block = biscuit_ops::inspect(&token).unwrap().blocks[0].clone();
-    assert!(block.contains("tag("));
-    // nothing extra was injected
-    assert!(block.contains("right(") && block.matches("right(").count() == 1);
+    assert!(refused.unwrap_err().message.contains("quote or backslash"));
 }

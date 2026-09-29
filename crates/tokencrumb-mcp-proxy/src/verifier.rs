@@ -540,8 +540,9 @@ impl Verifier {
             refuse!("biscuit verification failed: no trusted authority signature");
         };
         // Parse the token ONCE (provenance-safe reads from the AUTHORITY block only).
-        let parsed =
-            biscuit_ops::inspect(&token_b64).and_then(|insp| Ok((metadata(&insp.blocks)?, insp)));
+        let parsed = biscuit_ops::check_unambiguous(&token)
+            .and_then(|()| biscuit_ops::inspect(&token_b64))
+            .and_then(|insp| Ok((metadata(&insp.blocks)?, insp)));
         let (facts, insp) = match parsed {
             Ok(parts) => parts,
             Err(e) => refuse!(format!("invalid mandate schema: {}", e.message)),

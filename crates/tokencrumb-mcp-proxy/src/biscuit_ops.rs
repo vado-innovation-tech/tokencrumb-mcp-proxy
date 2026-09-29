@@ -324,6 +324,7 @@ pub fn forge_at(
     let builder =
         BiscuitBuilder::new().code_with_params(lines.join("\n"), params, HashMap::new())?;
     let token = builder.build(&biscuit_keypair(authority_private_str)?)?;
+    check_unambiguous(&token)?;
     Ok(token.to_base64()?)
 }
 
@@ -400,7 +401,9 @@ pub fn attenuate_at(
         ));
     }
     let block = BlockBuilder::new().code_with_params(lines.join("\n"), params, HashMap::new())?;
-    Ok(token.append(block)?.to_base64()?)
+    let attenuated = token.append(block)?;
+    check_unambiguous(&attenuated)?;
+    Ok(attenuated.to_base64()?)
 }
 
 /// What `inspect` shows — no key required.
@@ -442,7 +445,30 @@ pub fn block_sources(token: &UnverifiedBiscuit) -> Result<Vec<String>> {
         .collect()
 }
 
+/// Refuse a mandate whose rendered block source would be ambiguous.
+///
+/// Biscuit prints string terms between quotes without escaping them, and the typed
+/// metadata is read back from that rendering: a string such as
+/// `a"); user("alice"); x("` would print as three facts and fabricate an identity the
+/// issuer never signed. No legitimate mandate string needs a quote or a backslash, so
+/// any block symbol holding one makes the whole mandate refused, fail-closed.
+pub fn check_unambiguous(token: &Biscuit) -> Result<()> {
+    for index in 0..token.block_count() {
+        if token
+            .block_symbols(index)?
+            .iter()
+            .any(|s| s.contains(['"', '\\']))
+        {
+            return Err(Error::value(format!(
+                "block {index} holds a string with a quote or backslash: its source would be ambiguous"
+            )));
+        }
+    }
+    Ok(())
+}
+
 pub fn verified_block_sources(token: &Biscuit) -> Result<Vec<String>> {
+    check_unambiguous(token)?;
     (0..token.block_count())
         .map(|i| token.print_block_source(i).map_err(Error::from))
         .collect()

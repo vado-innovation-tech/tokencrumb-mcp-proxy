@@ -90,8 +90,11 @@ fn quoted_metadata_text_does_not_supply_metadata() {
         r#"comment("agent_pubkey(\"fake)\"); budget_cap(1000);");"#,
         "",
     );
+    // A quote inside a signed string makes the rendered block ambiguous: since 0.3.0 the
+    // whole mandate is refused rather than trusting the scanner to split it right.
     let result = read(&w.verifier(test_policy(), None), &token, x());
-    assert!(result.allow, "{}", result.reason);
+    assert!(!result.allow);
+    assert!(result.reason.contains("quote or backslash"), "{}", result.reason);
 }
 
 #[test]

@@ -329,3 +329,72 @@ fn future_timestamp_denied() {
         d.reason
     );
 }
+
+/// Biscuit prints string terms unescaped, and identity is read back from that print.
+/// A string closing its own quotes (`a"); user("alice"); x("`) used to fabricate a
+/// `user` fact the issuer never signed. Such a mandate is now refused outright, and
+/// cannot be forged by the CLI in the first place.
+#[test]
+fn quote_injection_cannot_fabricate_an_identity() {
+    use biscuit_auth::builder::Term;
+    use std::collections::HashMap;
+    let authority = tokencrumb_mcp_proxy::keys::generate_keypair();
+    let injected = "a\"); user(\"alice\"); x(\"";
+    let expiry = chrono::Utc::now() + chrono::Duration::hours(1);
+    let params = HashMap::from([
+        ("id".to_owned(), Term::Str(injected.to_owned())),
+        ("exp".to_owned(), Term::Date(expiry.timestamp() as u64)),
+    ]);
+    let token = biscuit_auth::BiscuitBuilder::new()
+        .code_with_params(
+            "agent_id({id}); required_profile(\"native\"); right(\"read_file\", \"read\"); \
+             budget_cap(5); audience(\"test-gw\"); expires_at({exp}); check if time($t), $t < {exp};",
+            params,
+            HashMap::new(),
+        )
+        .unwrap()
+        .build(&tokencrumb_mcp_proxy::keys::biscuit_keypair(&authority.private_str).unwrap())
+        .unwrap()
+        .to_base64()
+        .unwrap();
+    // The rendering really is ambiguous: the fabricated fact shows up in block 0.
+    assert!(
+        tokencrumb_mcp_proxy::biscuit_ops::inspect(&token).unwrap().blocks[0].contains("user(\"alice\")")
+    );
+
+    let policy = tokencrumb_mcp_proxy::policy::parse_policy(&serde_json::json!({
+        "tools": [{"name": "read_file", "operation": "read"}]
+    }))
+    .unwrap();
+    let verifier = tokencrumb_mcp_proxy::verifier::Verifier::new(
+        &authority.public_str,
+        policy,
+        tokencrumb_mcp_proxy::verifier::VerifierOptions::new("test-gw"),
+    )
+    .unwrap();
+    let headers =
+        tokencrumb_mcp_proxy::verifier::Headers::new([("authorization", format!("Biscuit {token}"))]);
+    let decision = verifier
+        .verify_call("read_file", &serde_json::json!({}), &headers, None, None)
+        .unwrap();
+    assert!(!decision.allow);
+    assert_eq!(decision.subject, None);
+    assert!(
+        decision
+            .reason
+            .starts_with("invalid mandate schema: block 0 holds a string with a quote"),
+        "{}",
+        decision.reason
+    );
+
+    let forged = tokencrumb_mcp_proxy::biscuit_ops::forge(
+        &authority.private_str,
+        &tokencrumb_mcp_proxy::biscuit_ops::ForgeRequest {
+            agent_id: injected.into(),
+            tool: "read_file".into(),
+            audience: "test-gw".into(),
+            ..Default::default()
+        },
+    );
+    assert!(forged.is_err());
+}
