@@ -1,0 +1,48 @@
+[workspace]
+resolver = "3"
+members = ["crates/tokencrumb-mcp-proxy"]
+
+[workspace.package]
+version = "0.3.0"
+edition = "2024"
+license = "Apache-2.0"
+authors = ["Vado Innovation"]
+repository = "https://github.com/vado-innovation-tech/tokencrumb-mcp-proxy"
+rust-version = "1.85"
+
+[workspace.dependencies]
+biscuit-auth = "=6.0.0"
+biscuit-parser = "0.2.0"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+rand = "0.8"
+sha2 = "0.10"
+hex = "0.4"
+base64 = "0.22"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["arbitrary_precision", "preserve_order"] }
+yaml-rust2 = "0.10"
+ryu-js = "1"
+unicode-normalization = "0.1"
+percent-encoding = "2"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+thiserror = "2"
+anyhow = "1"
+scrypt = { version = "0.11", default-features = false }
+aes-gcm = "0.10"
+rusqlite = { version = "0.32", features = ["bundled"] }
+libc = "0.2"
+tempfile = "3"
+regex = "1"
+clap = { version = "4", features = ["derive", "env"] }
+tokio = { version = "1", features = ["full"] }
+axum = "0.8"
+axum-server = { version = "0.7", features = ["tls-rustls"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json"] }
+ureq = { version = "2", default-features = false, features = ["tls"] }
+futures-util = "0.3"
+bytes = "1"
+http = "1"
+url = "2"
+shlex = "1"
+subtle = "2"
+tower = "0.5"
