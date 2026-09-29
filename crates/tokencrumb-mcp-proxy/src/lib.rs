@@ -19,6 +19,7 @@ pub mod nonce_cache;
 pub mod policy;
 pub mod profiles;
 pub mod proxy;
+pub mod registry;
 pub mod revocation;
 pub mod storage;
 pub mod token_contract;
