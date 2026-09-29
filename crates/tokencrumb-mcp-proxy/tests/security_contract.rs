@@ -94,7 +94,11 @@ fn quoted_metadata_text_does_not_supply_metadata() {
     // whole mandate is refused rather than trusting the scanner to split it right.
     let result = read(&w.verifier(test_policy(), None), &token, x());
     assert!(!result.allow);
-    assert!(result.reason.contains("quote or backslash"), "{}", result.reason);
+    assert!(
+        result.reason.contains("quote or backslash"),
+        "{}",
+        result.reason
+    );
 }
 
 #[test]

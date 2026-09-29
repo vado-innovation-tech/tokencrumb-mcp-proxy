@@ -1,0 +1,16 @@
+[package]
+name = "tokencrumb-interop"
+description = "Verify an issuer token against the proxy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "check-java-interop"
+path = "src/main.rs"
+
+[dependencies]
+tokencrumb-mcp-proxy = { path = "../../crates/tokencrumb-mcp-proxy" }
+chrono.workspace = true
+serde_json.workspace = true

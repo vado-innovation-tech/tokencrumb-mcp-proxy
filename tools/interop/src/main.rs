@@ -1,7 +1,7 @@
 //! Verify a fixture freshly emitted by the Java unit or live Keycloak integration test
 //! (`keycloak-biscuit`, see its README) against this verifier.
 //!
-//!     cargo run -p tokencrumb --example check_java_interop -- <fixture.json>
+//!     cargo run -p tokencrumb-interop -- <fixture.json>
 //!
 //! The mandate must be allowed for its granted tool, refused out of scope, and refused
 //! once its budget is spent — with the issuer and subject it carries recorded.
@@ -76,7 +76,7 @@ fn check(path: &str) -> Result<(), String> {
 
 fn main() -> ExitCode {
     let Some(path) = std::env::args().nth(1) else {
-        eprintln!("usage: check_java_interop <fixture.json>");
+        eprintln!("usage: check-java-interop <fixture.json>");
         return ExitCode::from(2);
     };
     match check(&path) {
