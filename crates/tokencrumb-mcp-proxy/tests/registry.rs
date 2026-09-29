@@ -480,7 +480,7 @@ fn the_resolver_caches_until_expiry_and_refuses_rollback() {
     let key = agent.public_str.clone();
     let served = Arc::new(std::sync::Mutex::new(Vec::<(i64, i64)>::new()));
     let script = served.clone();
-    // Each call pops (seq, issued_at offset) — a record valid for one more second.
+    // Each call pops (seq, issued_at offset) — a record valid for two more seconds.
     let server = stub::serve(move |_| {
         let (seq, offset) = script.lock().unwrap().remove(0);
         let record =
@@ -489,7 +489,7 @@ fn the_resolver_caches_until_expiry_and_refuses_rollback() {
             &signed_record("alice", &record, &private, Some(now() + offset)).unwrap(),
         )
     });
-    served.lock().unwrap().extend([(5, -29), (4, -29)]);
+    served.lock().unwrap().extend([(5, -28), (4, -28)]);
     let resolve = registry_resolver(&server.url, &registry.public_str, 16).unwrap();
     assert_eq!(resolve("alice").as_deref(), Some(agent.public_str.as_str()));
     assert_eq!(resolve("alice").as_deref(), Some(agent.public_str.as_str()));
@@ -499,7 +499,7 @@ fn the_resolver_caches_until_expiry_and_refuses_rollback() {
         "a fresh record is served from the cache"
     );
 
-    std::thread::sleep(std::time::Duration::from_millis(1100));
+    std::thread::sleep(std::time::Duration::from_millis(2100));
     assert!(resolve("alice").is_none(), "a lower seq is a rollback");
     assert_eq!(server.calls().len(), 2);
 }
