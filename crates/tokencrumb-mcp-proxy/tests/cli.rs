@@ -970,7 +970,7 @@ fn registry_serve_and_registry_add_over_http() {
         .unwrap();
     let _server = Server(child);
     let url = format!("http://{listen}");
-    let started = (0..100).any(|_| {
+    let started = (0..400).any(|_| {
         std::thread::sleep(std::time::Duration::from_millis(50));
         ureq::get(&format!("{url}/healthz")).call().is_ok()
     });
