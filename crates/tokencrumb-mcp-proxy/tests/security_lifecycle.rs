@@ -150,7 +150,7 @@ fn only_explicit_authority_epochs_are_trusted() {
 #[test]
 fn java_mandate_is_accepted_then_exhausted_and_cannot_change_rights() {
     let fixture_path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/java_mandate.json");
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/java_mandate.json");
     let fixture: Value =
         serde_json::from_str(&std::fs::read_to_string(fixture_path).unwrap()).unwrap();
     let policy = parse_policy(&json!({"tools": [
