@@ -42,6 +42,7 @@ clap.workspace = true
 tokio.workspace = true
 axum.workspace = true
 axum-server.workspace = true
+rustls.workspace = true
 reqwest.workspace = true
 ureq.workspace = true
 futures-util.workspace = true
