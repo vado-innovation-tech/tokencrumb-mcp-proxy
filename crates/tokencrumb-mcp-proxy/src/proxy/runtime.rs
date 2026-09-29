@@ -97,8 +97,11 @@ fn effective(policy: &Policy, mode: &Option<String>, min_profile: &Option<String
 }
 
 /// `[upstream:]Header=ENV_VARIABLE` -> upstream -> header -> secret.
-fn credential_headers(specs: &[String]) -> Result<BTreeMap<Option<String>, Vec<(String, String)>>> {
-    let mut out: BTreeMap<Option<String>, Vec<(String, String)>> = BTreeMap::new();
+/// Upstream (None = the unnamed one) -> `(header, secret)` pairs.
+type CredentialHeaders = BTreeMap<Option<String>, Vec<(String, String)>>;
+
+fn credential_headers(specs: &[String]) -> Result<CredentialHeaders> {
+    let mut out = CredentialHeaders::new();
     for spec in specs {
         let (destination, env_name) = spec.split_once('=').unwrap_or((spec.as_str(), ""));
         if !spec.contains('=') || !is_env_name(env_name) {

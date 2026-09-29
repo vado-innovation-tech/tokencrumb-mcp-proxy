@@ -5,19 +5,23 @@
 //! only holds when called directly is not a check the gateway actually enforces.
 #![allow(dead_code)]
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
+use biscuit_auth::builder::Term as BiscuitTerm;
+use biscuit_auth::{Biscuit, BiscuitBuilder, BlockBuilder};
 use tokencrumb_mcp_proxy::audit::{AuditLog, TrustedKeys};
 use tokencrumb_mcp_proxy::biscuit_ops::{self, ForgeRequest};
-use tokencrumb_mcp_proxy::keys::{Keypair, generate_keypair};
+use tokencrumb_mcp_proxy::keys::{Keypair, biscuit_public, generate_keypair};
 use tokencrumb_mcp_proxy::policy::{Policy, parse_policy};
 use tokencrumb_mcp_proxy::proxy::app::{ProxyConfig, create_app};
 use tokencrumb_mcp_proxy::proxy::upstream::{ForwardHeaders, SharedUpstream, Upstream, UpstreamResponse};
-use tokencrumb_mcp_proxy::verifier::{Verifier, VerifierOptions};
+use tokencrumb_mcp_proxy::verifier::{Decision, Headers, Verifier, VerifierOptions};
 use bytes::Bytes;
+use chrono::{DateTime, Utc};
 use futures_util::future::BoxFuture;
 use serde_json::{Value, json};
 use tower::ServiceExt;
@@ -28,6 +32,8 @@ pub const TEST_AUDIENCE: &str = "test-gw";
 pub struct FakeUpstream {
     pub calls: Mutex<Vec<(String, Vec<u8>, ForwardHeaders)>>,
     pub payload: Mutex<Value>,
+    /// Replaces the rendered payload verbatim when set (malformed bodies, split SSE).
+    pub raw_body: Option<Vec<u8>>,
     pub content_type: String,
     pub status: u16,
     pub extra_headers: Vec<(String, String)>,
@@ -42,11 +48,20 @@ impl FakeUpstream {
                 payload
                     .unwrap_or_else(|| json!({"jsonrpc": "2.0", "id": 1, "result": {"ok": true}})),
             ),
+            raw_body: None,
             content_type: content_type.to_owned(),
             status: 200,
             extra_headers: Vec::new(),
             requires_credentials: false,
         })
+    }
+
+    /// A default JSON upstream adjusted before it is shared.
+    pub fn customized(adjust: impl FnOnce(&mut FakeUpstream)) -> Arc<Self> {
+        let mut upstream = Arc::try_unwrap(Self::default_json())
+            .unwrap_or_else(|_| unreachable!("fresh upstream"));
+        adjust(&mut upstream);
+        Arc::new(upstream)
     }
 
     pub fn default_json() -> Arc<Self> {
@@ -71,6 +86,9 @@ impl FakeUpstream {
     }
 
     fn body(&self) -> Vec<u8> {
+        if let Some(raw) = &self.raw_body {
+            return raw.clone();
+        }
         let payload = self.payload.lock().unwrap().clone();
         if self.content_type.contains("event-stream") {
             format!(
@@ -332,4 +350,239 @@ impl From<&[u8]> for Payload {
 
 pub fn bearer(token: &str) -> String {
     format!("Biscuit {token}")
+}
+
+// -- Verifier-level helpers ------------------------------------------------------------
+
+/// `Authorization: Biscuit <token>`, plus `Agent-Attestation` when given.
+pub fn biscuit_headers(token: &str, attestation: Option<&str>) -> Headers {
+    let mut pairs = vec![("authorization".to_owned(), bearer(token))];
+    if let Some(att) = attestation {
+        pairs.push(("agent-attestation".to_owned(), att.to_owned()));
+    }
+    Headers::new(pairs)
+}
+
+/// Verifier options answering to the test audience.
+pub fn options() -> VerifierOptions {
+    VerifierOptions::new(TEST_AUDIENCE)
+}
+
+/// One `tools/call` through the verifier; an infrastructure error fails the test.
+pub fn verify(verifier: &Verifier, tool: &str, arguments: Value, headers: &Headers) -> Decision {
+    verifier
+        .verify_call(tool, &arguments, headers, None, None)
+        .unwrap_or_else(|e| panic!("verification could not complete: {}", e.message))
+}
+
+/// A forge request for the test audience; the other fields keep their defaults.
+pub fn mandate(
+    agent_id: &str,
+    tool: &str,
+    operation: &str,
+    ttl_seconds: i128,
+    budget: i128,
+) -> ForgeRequest {
+    ForgeRequest {
+        agent_id: agent_id.into(),
+        tool: tool.into(),
+        operation: operation.into(),
+        ttl_seconds,
+        budget,
+        audience: TEST_AUDIENCE.into(),
+        ..Default::default()
+    }
+}
+
+pub fn forge(authority_private: &str, request: ForgeRequest) -> String {
+    biscuit_ops::forge(authority_private, &request).unwrap()
+}
+
+pub fn str_term(value: &str) -> BiscuitTerm {
+    BiscuitTerm::Str(value.to_owned())
+}
+
+pub fn date_term(value: DateTime<Utc>) -> BiscuitTerm {
+    BiscuitTerm::Date(u64::try_from(value.timestamp()).unwrap())
+}
+
+pub fn in_seconds(seconds: i64) -> DateTime<Utc> {
+    Utc::now() + chrono::TimeDelta::seconds(seconds)
+}
+
+fn params(pairs: &[(&str, BiscuitTerm)]) -> HashMap<String, BiscuitTerm> {
+    pairs
+        .iter()
+        .map(|(k, v)| ((*k).to_owned(), v.clone()))
+        .collect()
+}
+
+/// A mandate built from raw Datalog — what a foreign issuer could mint.
+pub fn build_token(authority_private: &str, code: &str, pairs: &[(&str, BiscuitTerm)]) -> String {
+    BiscuitBuilder::new()
+        .code_with_params(code, params(pairs), HashMap::new())
+        .unwrap()
+        .build(&tokencrumb_mcp_proxy::keys::biscuit_keypair(authority_private).unwrap())
+        .unwrap()
+        .to_base64()
+        .unwrap()
+}
+
+/// Append a block to a verified token, as any holder can offline.
+pub fn append_block(
+    token: &str,
+    authority_public: &str,
+    code: &str,
+    pairs: &[(&str, BiscuitTerm)],
+) -> String {
+    let block = BlockBuilder::new()
+        .code_with_params(code, params(pairs), HashMap::new())
+        .unwrap();
+    Biscuit::from_base64(token, biscuit_public(authority_public).unwrap())
+        .unwrap()
+        .append(block)
+        .unwrap()
+        .to_base64()
+        .unwrap()
+}
+
+// -- A real HTTP upstream on 127.0.0.1 ---------------------------------------------------
+
+/// One request as the recording server received it.
+#[derive(Debug, Clone)]
+pub struct Recorded {
+    pub method: String,
+    pub path: String,
+    /// Lowercase names, in arrival order (repeated headers kept).
+    pub headers: Vec<(String, String)>,
+    pub body: Vec<u8>,
+}
+
+impl Recorded {
+    pub fn header(&self, name: &str) -> Option<&str> {
+        self.headers
+            .iter()
+            .find(|(k, _)| k == name)
+            .map(|(_, v)| v.as_str())
+    }
+
+    pub fn header_all(&self, name: &str) -> Vec<&str> {
+        self.headers
+            .iter()
+            .filter(|(k, _)| k == name)
+            .map(|(_, v)| v.as_str())
+            .collect()
+    }
+
+    pub fn json(&self) -> Value {
+        serde_json::from_slice(&self.body).unwrap()
+    }
+}
+
+/// A canned reply.
+pub struct Canned {
+    pub status: u16,
+    pub headers: Vec<(String, String)>,
+    pub body: Vec<u8>,
+}
+
+impl Canned {
+    pub fn json(status: u16, value: Value) -> Self {
+        Self {
+            status,
+            headers: vec![("content-type".into(), "application/json".into())],
+            body: serde_json::to_vec(&value).unwrap(),
+        }
+    }
+
+    pub fn raw(status: u16, headers: &[(&str, &str)], body: &[u8]) -> Self {
+        Self {
+            status,
+            headers: headers
+                .iter()
+                .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+                .collect(),
+            body: body.to_vec(),
+        }
+    }
+}
+
+type Responder = Arc<dyn Fn(&Recorded) -> Canned + Send + Sync>;
+
+/// An HTTP server on an ephemeral local port that records every request (the
+/// counterpart of `httpx.MockTransport`, over a real socket).
+pub struct RecordingServer {
+    pub base: String,
+    requests: Arc<Mutex<Vec<Recorded>>>,
+    task: tokio::task::JoinHandle<()>,
+}
+
+impl RecordingServer {
+    pub async fn start(respond: impl Fn(&Recorded) -> Canned + Send + Sync + 'static) -> Self {
+        let requests: Arc<Mutex<Vec<Recorded>>> = Arc::default();
+        let respond: Responder = Arc::new(respond);
+        let seen = requests.clone();
+        let handler = move |request: Request<Body>| {
+            let seen = seen.clone();
+            let respond = respond.clone();
+            async move {
+                let (parts, body) = request.into_parts();
+                let body = axum::body::to_bytes(body, usize::MAX)
+                    .await
+                    .unwrap()
+                    .to_vec();
+                let recorded = Recorded {
+                    method: parts.method.to_string(),
+                    path: parts.uri.path().to_owned(),
+                    headers: parts
+                        .headers
+                        .iter()
+                        .map(|(k, v)| {
+                            (
+                                k.as_str().to_owned(),
+                                String::from_utf8_lossy(v.as_bytes()).into_owned(),
+                            )
+                        })
+                        .collect(),
+                    body,
+                };
+                let canned = respond(&recorded);
+                seen.lock().unwrap().push(recorded);
+                let mut response = axum::response::Response::new(Body::from(canned.body));
+                *response.status_mut() = StatusCode::from_u16(canned.status).unwrap();
+                for (k, v) in canned.headers {
+                    response.headers_mut().append(
+                        axum::http::HeaderName::from_bytes(k.as_bytes()).unwrap(),
+                        axum::http::HeaderValue::from_str(&v).unwrap(),
+                    );
+                }
+                response
+            }
+        };
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let app = axum::Router::new().fallback(handler);
+        let task = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+        Self {
+            base: format!("http://{address}"),
+            requests,
+            task,
+        }
+    }
+
+    pub fn url(&self, path: &str) -> String {
+        format!("{}{path}", self.base)
+    }
+
+    pub fn requests(&self) -> Vec<Recorded> {
+        self.requests.lock().unwrap().clone()
+    }
+}
+
+impl Drop for RecordingServer {
+    fn drop(&mut self) {
+        self.task.abort();
+    }
 }
