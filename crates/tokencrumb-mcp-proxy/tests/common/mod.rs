@@ -1,9 +1,55 @@
 //! Shared helpers for the integration tests: the golden corpus and test keys.
 #![allow(dead_code)]
 
-use std::path::PathBuf;
+pub mod stub;
+
+use std::io::Write as _;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output, Stdio};
 
 use serde_json::Value;
+
+/// Run the built `tokencrumb` binary in `dir` (colour disabled, as when piped).
+pub fn bm(dir: &Path, args: &[&str]) -> Output {
+    bm_stdin(dir, args, b"")
+}
+
+/// [`bm`] with `input` on stdin.
+pub fn bm_stdin(dir: &Path, args: &[&str], input: &[u8]) -> Output {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_tokencrumb"))
+        .args(args)
+        .current_dir(dir)
+        .env("NO_COLOR", "1")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("tokencrumb binary");
+    let mut stdin = child.stdin.take().unwrap();
+    stdin.write_all(input).unwrap();
+    drop(stdin);
+    child.wait_with_output().unwrap()
+}
+
+pub fn stdout(output: &Output) -> String {
+    String::from_utf8_lossy(&output.stdout).into_owned()
+}
+
+pub fn stderr(output: &Output) -> String {
+    String::from_utf8_lossy(&output.stderr).into_owned()
+}
+
+/// A fresh keypair written as `<dir>/<name>.key` / `.pub` (plaintext private key).
+pub fn keyfiles(dir: &Path, name: &str) -> tokencrumb_mcp_proxy::keys::Keypair {
+    let kp = tokencrumb_mcp_proxy::keys::generate_keypair();
+    tokencrumb_mcp_proxy::keys::save_private_key(dir.join(format!("{name}.key")), &kp.private_str, None)
+        .unwrap();
+    tokencrumb_mcp_proxy::keys::save_public_key(dir.join(format!("{name}.pub")), &kp.public_str).unwrap();
+    kp
+}
+
+/// The deployment name every test mandate is forged for.
+pub const TEST_AUDIENCE: &str = "test-gw";
 
 pub fn golden_path(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

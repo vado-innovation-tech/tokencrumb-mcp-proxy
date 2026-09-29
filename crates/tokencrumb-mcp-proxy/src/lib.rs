@@ -7,8 +7,10 @@
 pub mod attestation;
 pub mod audit;
 pub mod biscuit_ops;
+pub mod bootstrap;
 pub mod budget;
 pub mod canonical;
+pub mod client_transport;
 pub mod duration;
 pub mod error;
 pub mod isotime;

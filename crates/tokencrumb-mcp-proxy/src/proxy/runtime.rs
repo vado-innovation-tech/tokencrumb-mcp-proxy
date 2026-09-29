@@ -273,6 +273,7 @@ pub fn build_config(options: &ServeOptions) -> Result<Runtime> {
             Some(crate::registry::registry_resolver(
                 url,
                 &keys::load_public_key(registry_pub)?,
+                4096,
             )?)
         }
         None => None,
@@ -392,9 +393,9 @@ async fn shutdown_signal() {
     }
 }
 
-/// Run `tokencrumb serve` until interrupted. The error's message is what the CLI prints
-/// after `error: ` — the listen/TLS checks speak for themselves, a failed start is
-/// prefixed `cannot start proxy: `, as before.
+/// Run `tokencrumb serve` until interrupted. The CLI runs the listen/TLS guards itself
+/// (with their own messages) and prints any error returned here as
+/// `error: cannot start proxy: <message>`, as before.
 pub async fn serve(options: ServeOptions) -> anyhow::Result<()> {
     let listen = if options.listen.is_empty() {
         ":9443"
@@ -410,7 +411,7 @@ pub async fn serve(options: ServeOptions) -> anyhow::Result<()> {
     .map_err(|e| anyhow::anyhow!("{e}"))?;
     crate::net::guard_cleartext_bind(&host, tls.is_some(), options.insecure_http, "serve")
         .map_err(|e| anyhow::anyhow!("{e}"))?;
-    let runtime = build_config(&options).map_err(|e| anyhow::anyhow!("cannot start proxy: {e}"))?;
+    let runtime = build_config(&options).map_err(|e| anyhow::anyhow!("{e}"))?;
 
     let scheme = if tls.is_some() { "https" } else { "http" };
     let endpoints: Vec<String> = runtime
@@ -462,7 +463,7 @@ pub async fn serve(options: ServeOptions) -> anyhow::Result<()> {
     );
 
     let upstreams = runtime.config.upstreams.clone();
-    let app = create_app(runtime.config).map_err(|e| anyhow::anyhow!("cannot start proxy: {e}"))?;
+    let app = create_app(runtime.config).map_err(|e| anyhow::anyhow!("{e}"))?;
     let address: SocketAddr =
         crate::net::socket_addr(&host, port).map_err(|e| anyhow::anyhow!("{e}"))?;
     let handle = axum_server::Handle::new();

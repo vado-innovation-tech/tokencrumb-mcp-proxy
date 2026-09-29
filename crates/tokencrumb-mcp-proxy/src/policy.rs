@@ -550,6 +550,9 @@ pub fn load_policy(path: impl AsRef<Path>) -> Result<Policy> {
     Ok(policy)
 }
 
+/// Receives `(level, message)` for every reload decision.
+pub type PolicyEventSink = Box<dyn Fn(&str, &str) + Send + Sync>;
+
 /// (device, inode, sha256) of a consistent read of the policy file.
 type Snapshot = (u64, u64, String);
 
@@ -565,7 +568,7 @@ type Snapshot = (u64, u64, String);
 pub struct PolicyReloader {
     path: PathBuf,
     min_interval: Duration,
-    on_event: Box<dyn Fn(&str, &str) + Send + Sync>,
+    on_event: PolicyEventSink,
     frozen: Policy,
     state: Mutex<ReloadState>,
 }
@@ -597,7 +600,7 @@ impl PolicyReloader {
         path: impl Into<PathBuf>,
         current: Policy,
         min_interval: Duration,
-        on_event: Box<dyn Fn(&str, &str) + Send + Sync>,
+        on_event: PolicyEventSink,
     ) -> Self {
         let path = path.into();
         let initial = snapshot(&path).ok().map(|(s, _)| s);
