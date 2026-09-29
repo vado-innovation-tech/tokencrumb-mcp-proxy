@@ -554,7 +554,7 @@ mod tests {
             })
             .unwrap();
         }
-        let trusted = trusted_from(&[kp.public_str.clone()]).unwrap();
+        let trusted = trusted_from(std::slice::from_ref(&kp.public_str)).unwrap();
         assert!(verify_log(&path, &trusted).unwrap().ok);
         let text = std::fs::read_to_string(&path)
             .unwrap()

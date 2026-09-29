@@ -251,10 +251,8 @@ pub fn block_facts(source: &str, enforce: bool, include_ordinary: bool) -> Resul
                 continue; // a verified token's ordinary business rule; Biscuit evaluates it
             }
         };
-        if !is_governed(name) {
-            if !include_ordinary || has_collection(&statement) {
-                continue;
-            }
+        if !is_governed(name) && (!include_ordinary || has_collection(&statement)) {
+            continue;
         }
         let terms = convert_terms(name, &fact)?;
         out.push(&fact.predicate.name, terms);

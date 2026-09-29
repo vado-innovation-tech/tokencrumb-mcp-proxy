@@ -20,7 +20,7 @@ fn python_audit_chain_verifies_and_resumes() {
     let text = corpus["log"].as_str().unwrap();
     std::fs::write(&path, text).unwrap();
     let public = corpus["public"].as_str().unwrap().to_owned();
-    let trusted = trusted_from(&[public.clone()]).unwrap();
+    let trusted = trusted_from(std::slice::from_ref(&public)).unwrap();
 
     let result = verify_log(&path, &trusted).unwrap();
     assert!(result.ok, "{:?}", result.failures);
