@@ -110,17 +110,44 @@ pub fn validate_issuer_url(url: &str) -> Result<()> {
 
 /// Extract the mandate from an issuer response, verified against the pre-provisioned
 /// authority key; the issuer must have signed an expiry.
+///
+/// Two transports are accepted: the exchange endpoint's `{"biscuit": …}`, and an OIDC
+/// token response whose access token carries the mandate in a `biscuit` claim (the
+/// Keycloak mapper path, anchored through DPoP). The JWT is only an envelope here: its
+/// own signature is not what grants anything, the Biscuit's is, and it is checked
+/// against the anchor provisioned beforehand, never against a key the issuer sends.
 pub fn accept_exchange(raw: &[u8], authority_public: &str) -> Result<String> {
     let document = strict_json(raw)?;
-    let Some(Value::String(token_b64)) = document.as_object().and_then(|d| d.get("biscuit")) else {
+    let token_b64 = match document.as_object() {
+        Some(d) if d.contains_key("biscuit") => d.get("biscuit").cloned(),
+        Some(d) => match d.get("access_token") {
+            Some(Value::String(jwt)) => access_token_claim(jwt)?,
+            _ => None,
+        },
+        None => None,
+    };
+    let Some(Value::String(token_b64)) = token_b64 else {
         return Err(Error::value("invalid issuer response"));
     };
-    let token = Biscuit::from_base64(token_b64, biscuit_public(authority_public)?)?;
+    let token = Biscuit::from_base64(&token_b64, biscuit_public(authority_public)?)?;
     let bounds = metadata(&verified_block_sources(&token)?)?;
     if bounds.expires_at.is_empty() {
         return Err(Error::value("issuer did not sign expires_at"));
     }
-    Ok(token_b64.clone())
+    Ok(token_b64)
+}
+
+/// The `biscuit` claim of a compact JWT's payload, if any.
+fn access_token_claim(jwt: &str) -> Result<Option<Value>> {
+    use base64::Engine as _;
+    let parts: Vec<&str> = jwt.split('.').collect();
+    if parts.len() != 3 {
+        return Err(Error::value("invalid issuer response"));
+    }
+    let payload = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(parts[1].trim_end_matches('='))
+        .map_err(|_| Error::value("invalid issuer response"))?;
+    Ok(strict_json(&payload)?.get("biscuit").cloned())
 }
 
 #[cfg(test)]

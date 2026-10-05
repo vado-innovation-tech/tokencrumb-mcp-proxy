@@ -74,6 +74,50 @@ fn exchange_cannot_replace_the_preprovisioned_trust_anchor() {
     assert!(accept_exchange(raw.as_bytes(), &attacker.public_str).is_err());
 }
 
+/// An OIDC token response from the Keycloak mapper: the mandate rides in the access
+/// token's `biscuit` claim, and is held to exactly the same trust anchor.
+fn oidc_response(claims: serde_json::Value) -> String {
+    use base64::Engine as _;
+    let b64 = |v: serde_json::Value| {
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(v.to_string())
+    };
+    let jwt = format!(
+        "{}.{}.c2ln",
+        b64(json!({"alg": "RS256", "typ": "JWT"})),
+        b64(claims)
+    );
+    json!({"access_token": jwt, "token_type": "DPoP", "expires_in": 7200}).to_string()
+}
+
+#[test]
+fn oidc_response_yields_the_claimed_mandate_under_the_same_anchor() {
+    let authority = generate_keypair();
+    let attacker = generate_keypair();
+    let token = mandate(&authority.private_str);
+    let raw = oidc_response(json!({"sub": "u", "biscuit": token}));
+    assert_eq!(
+        accept_exchange(raw.as_bytes(), &authority.public_str).unwrap(),
+        token
+    );
+    // An issuer, or anyone on the path, cannot substitute its own mandate.
+    let forged = oidc_response(json!({"biscuit": mandate(&attacker.private_str)}));
+    assert!(accept_exchange(forged.as_bytes(), &authority.public_str).is_err());
+    // No claim, or a token that is not a JWT, is not a mandate.
+    for raw in [
+        oidc_response(json!({"sub": "u"})),
+        json!({"access_token": "opaque"}).to_string(),
+        json!({"access_token": "a.!!.c"}).to_string(),
+    ] {
+        assert_eq!(
+            accept_exchange(raw.as_bytes(), &authority.public_str)
+                .unwrap_err()
+                .message,
+            "invalid issuer response",
+            "{raw}"
+        );
+    }
+}
+
 #[test]
 fn a_malformed_or_unbounded_response_is_refused() {
     let authority = generate_keypair();

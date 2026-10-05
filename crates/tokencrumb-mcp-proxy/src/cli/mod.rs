@@ -285,6 +285,23 @@ pub enum Command {
         #[arg(long)]
         out: Option<String>,
     },
+    /// Print a DPoP proof (RFC 9449) signed by the agent key, for one HTTP request.
+    ///
+    /// An issuer in `hardened_biscuit_anchored` anchors the key of this proof in the
+    /// mandate: the agent proves possession instead of declaring a key, e.g.
+    /// curl -H "DPoP: $(tokencrumb dpop-proof --agent-key agent.key --url $TOKEN_URL)" …
+    DpopProof {
+        /// Agent private key file
+        #[arg(long)]
+        agent_key: String,
+        /// Exact URL of the request, without query or fragment
+        #[arg(long)]
+        url: String,
+        #[arg(long, default_value = "POST")]
+        method: String,
+        #[arg(long)]
+        passphrase: Option<String>,
+    },
 }
 
 #[derive(clap::Args, Debug)]
@@ -647,6 +664,17 @@ fn run(command: Command) -> Outcome {
             response.as_deref(),
             out.as_deref(),
         ),
+        Command::DpopProof {
+            agent_key,
+            url,
+            method,
+            passphrase,
+        } => {
+            let private = load_private(&agent_key, passphrase.as_deref()).map_err(Exit::Fail)?;
+            let proof = tokencrumb_mcp_proxy::dpop::proof(&private, &method, &url, chrono::Utc::now())?;
+            say(&proof);
+            Ok(())
+        }
     }
 }
 
