@@ -1,7 +1,7 @@
 //! Issuer bootstrap: the exchange response is only a transport; the trust anchor is
 //! provisioned beforehand. Ported from the bootstrap part of
 //! `tests/test_security_deployment.py`, plus the `bootstrap` subcommand that replaces
-//! Validate issuer responses before accepting capabilities.
+//! Issuer responses are validated before accepting a capability token.
 
 mod common;
 
