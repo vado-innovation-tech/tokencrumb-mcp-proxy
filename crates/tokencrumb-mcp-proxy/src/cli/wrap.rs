@@ -68,6 +68,38 @@ fn read_line(input: &mut impl BufRead) -> std::io::Result<Line> {
     }
 }
 
+/// The mandate file, watched so a renewed mandate is picked up by a running client
+/// (Claude Desktop launches `client-wrap` once and keeps it for the whole session).
+struct TokenFile {
+    path: std::path::PathBuf,
+    stamp: Option<std::time::SystemTime>,
+}
+
+impl TokenFile {
+    fn watch(token: &str) -> Option<Self> {
+        let path = Path::new(token);
+        path.is_file().then(|| Self {
+            path: path.to_path_buf(),
+            stamp: Self::stamp(path),
+        })
+    }
+
+    fn stamp(path: &Path) -> Option<std::time::SystemTime> {
+        std::fs::metadata(path).and_then(|m| m.modified()).ok()
+    }
+
+    /// The new mandate when the file changed since the last look.
+    fn changed(&mut self) -> Option<String> {
+        let stamp = Self::stamp(&self.path);
+        if stamp.is_none() || stamp == self.stamp {
+            return None;
+        }
+        self.stamp = stamp;
+        let text = std::fs::read_to_string(&self.path).ok()?;
+        Some(py_strip(&text).to_owned()).filter(|t| !t.is_empty())
+    }
+}
+
 pub fn client_wrap(
     proxy: &str,
     token: &str,
@@ -81,6 +113,7 @@ pub fn client_wrap(
         Some(path) => Some(load_private(path, passphrase).map_err(Exit::Fail)?),
         None => None,
     };
+    let agent_id_given = agent_id.is_some_and(|a| !a.is_empty());
     let agent_id = match agent_id.filter(|a| !a.is_empty()) {
         Some(id) => id.to_owned(),
         None => ops::authority_agent_id(&token_b64)?
@@ -115,6 +148,7 @@ pub fn client_wrap(
         if private.is_some() { "on" } else { "off" },
     ));
 
+    let mut watched = TokenFile::watch(token);
     let mut bridge = ClientTransport::new(agent, proxy, token_b64, agent_id, private);
     let stdin = std::io::stdin();
     let mut input = stdin.lock();
@@ -134,7 +168,22 @@ pub fn client_wrap(
                 "error": {"code": -32603, "message": "transport or request error"},
             })),
             Line::Text(text) if py_strip(&text).is_empty() => continue,
-            Line::Text(text) => bridge.exchange(&text),
+            Line::Text(text) => {
+                if let Some(token_b64) = watched.as_mut().and_then(TokenFile::changed) {
+                    if !agent_id_given {
+                        if let Ok(Some(id)) = ops::authority_agent_id(&token_b64) {
+                            bridge.agent_id = id.display();
+                        }
+                    }
+                    if bridge.rotate_token(&token_b64) {
+                        status(&format!(
+                            "{} mandate reloaded from {token}",
+                            paint("client-wrap", "32", Stream::Stderr)
+                        ));
+                    }
+                }
+                bridge.exchange(&text)
+            }
         };
         if let Some(result) = result {
             let mut out = stdout.lock();

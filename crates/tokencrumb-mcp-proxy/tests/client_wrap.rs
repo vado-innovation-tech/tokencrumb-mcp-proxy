@@ -307,6 +307,60 @@ fn notifications_expect_no_answer_and_404_drops_the_session() {
     assert!(bridge.session.is_none(), "an expired session is forgotten");
 }
 
+/// A new mandate opens a new session: the proxy binds a session to the mandate that
+/// opened it. The client's own handshake is replayed under the new mandate, silently,
+/// and the next request travels in that new session.
+#[test]
+fn a_rotated_mandate_replays_the_handshake_in_a_new_session() {
+    let server = stub::serve(|request| {
+        let message = request.json();
+        let session = match request.header("authorization") {
+            Some("Biscuit token") => "S-old",
+            _ => "S-new",
+        };
+        if message.get("id").is_none() {
+            return StubResponse::new(202, "application/json", "");
+        }
+        StubResponse::json(
+            &json!({"jsonrpc": "2.0", "id": message["id"], "result": {"protocolVersion": "2025-06-18"}}),
+        )
+        .header("Mcp-Session-Id", session)
+    });
+    let mut bridge = bridge(&server.url);
+    bridge.exchange("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\"}");
+    bridge.exchange("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}");
+    assert!(
+        !bridge.rotate_token("token"),
+        "the same mandate changes nothing"
+    );
+    assert_eq!(server.calls().len(), 2);
+
+    assert!(bridge.rotate_token("token2"));
+    let reply = bridge.exchange("{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"ping\"}");
+    assert_eq!(reply.unwrap()["id"], json!(7));
+
+    let calls = server.calls();
+    let replayed: Vec<Value> = calls[2..]
+        .iter()
+        .map(|c| c.json()["method"].clone())
+        .collect();
+    assert_eq!(
+        replayed,
+        [
+            json!("initialize"),
+            json!("notifications/initialized"),
+            json!("ping")
+        ]
+    );
+    assert_eq!(calls[2].header("authorization"), Some("Biscuit token2"));
+    assert_eq!(
+        calls[2].header("mcp-session-id"),
+        None,
+        "the old session is not reused"
+    );
+    assert_eq!(calls[4].header("mcp-session-id"), Some("S-new"));
+}
+
 // --------------------------------------------------------------------------- //
 // The binary
 // --------------------------------------------------------------------------- //

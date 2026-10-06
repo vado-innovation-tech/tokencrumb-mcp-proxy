@@ -101,6 +101,9 @@ pub struct ClientTransport {
     /// `MCP-Session-Id` negotiated at `initialize`; dropped when the proxy answers 404.
     pub session: Option<String>,
     pub version: String,
+    /// The client's own `initialize` and `notifications/initialized`, kept to reopen a
+    /// session when the mandate changes under a running client.
+    handshake: Vec<String>,
 }
 
 impl ClientTransport {
@@ -119,7 +122,24 @@ impl ClientTransport {
             private,
             session: None,
             version: PROTOCOL_VERSION.into(),
+            handshake: Vec::new(),
         }
+    }
+
+    /// Present `token` from now on. The proxy binds a session to the mandate that opened
+    /// it, so a different mandate drops the session and replays the client's handshake
+    /// under the new one; the client sees nothing. Returns false when nothing changed.
+    pub fn rotate_token(&mut self, token: &str) -> bool {
+        if token == self.token {
+            return false;
+        }
+        self.token = token.to_owned();
+        self.session = None;
+        for raw in self.handshake.clone() {
+            // A failed replay leaves no session: the next request reports it, generically.
+            let _ = self.relay(&raw, &mut Value::Null, &mut true);
+        }
+        true
     }
 
     /// Relay one client line; `None` for a notification (nothing to write back).
@@ -226,6 +246,9 @@ impl ClientTransport {
             if !messages.is_empty() {
                 return Err(Error::value("notification returned an unsolicited message"));
             }
+            if method == "notifications/initialized" && self.handshake.len() == 1 {
+                self.handshake.push(raw.to_owned());
+            }
             return Ok(None);
         }
         if messages.len() != 1 || !same_id(messages[0].get("id"), request_id) {
@@ -245,6 +268,7 @@ impl ClientTransport {
                     return Err(Error::value("unsupported negotiated MCP version"));
                 }
                 self.session = session;
+                self.handshake = vec![raw.to_owned()];
             }
         }
         Ok(Some(result))
