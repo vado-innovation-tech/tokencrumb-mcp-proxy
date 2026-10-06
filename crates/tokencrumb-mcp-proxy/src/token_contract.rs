@@ -17,6 +17,7 @@ use crate::validation::{MAX_INTEGER, public_key, py_isspace, py_strip, string};
 pub const CONTEXT_FACTS: &[&str] = &[
     "time",
     "operation",
+    "tool",
     "upstream",
     "resource",
     "budget",

@@ -336,6 +336,9 @@ pub struct Attenuation {
     pub ttl_seconds: Option<i128>,
     pub upstream: Option<String>,
     pub max_delegation_depth: Option<i128>,
+    /// Keep only these tools (public names). Never grants one: the issuer's right
+    /// is still required.
+    pub tools: Vec<String>,
 }
 
 /// Append a restrictive block. Requires the authority *public* key (the trust anchor,
@@ -394,6 +397,18 @@ pub fn attenuate_at(
     if let Some(depth) = request.max_delegation_depth {
         lines.push("max_delegation_depth({mdd});".into());
         params.insert("mdd".into(), BiscuitTerm::Integer(depth as i64));
+    }
+    if !request.tools.is_empty() {
+        let mut kept = std::collections::BTreeSet::new();
+        for tool in &request.tools {
+            let tool = string(tool, "tool", 128)?;
+            kept.insert(BiscuitTerm::Str(tool.to_owned()));
+        }
+        if kept.len() > 64 {
+            return Err(Error::value("at most 64 tools may be kept"));
+        }
+        lines.push("check if tool($t), {tools}.contains($t);".into());
+        params.insert("tools".into(), BiscuitTerm::Set(kept));
     }
     if lines.is_empty() {
         return Err(Error::value(

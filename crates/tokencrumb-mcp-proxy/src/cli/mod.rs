@@ -127,6 +127,9 @@ pub enum Command {
         upstream: Option<String>,
         #[arg(long = "max-depth", allow_negative_numbers = true)]
         max_delegation_depth: Option<i128>,
+        /// Keep only this tool (repeatable); the others become unusable
+        #[arg(long = "tool")]
+        tools: Vec<String>,
         #[arg(long)]
         out: Option<String>,
     },
@@ -535,6 +538,7 @@ fn run(command: Command) -> Outcome {
             ttl,
             upstream,
             max_delegation_depth,
+            tools,
             out,
         } => {
             let token_b64 = read_token_arg(&token);
@@ -553,6 +557,7 @@ fn run(command: Command) -> Outcome {
                         ttl_seconds,
                         upstream,
                         max_delegation_depth,
+                        tools,
                     },
                 )
             })()

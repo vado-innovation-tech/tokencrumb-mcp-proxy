@@ -944,7 +944,13 @@ impl Verifier {
         upstream_name: Option<&str>,
         policy: &Policy,
     ) -> std::result::Result<(), AuthorizeError> {
-        let mut lines: Vec<String> = vec!["time({t});".into(), "operation({o});".into()];
+        // `tool` names the called tool (its public name) so an attenuation block can keep
+        // a subset of the granted tools: `check if tool($t), {tools}.contains($t)`.
+        let mut lines: Vec<String> = vec![
+            "time({t});".into(),
+            "operation({o});".into(),
+            "tool({tool});".into(),
+        ];
         let mut params: HashMap<String, BiscuitTerm> = HashMap::from([
             (
                 "t".into(),
