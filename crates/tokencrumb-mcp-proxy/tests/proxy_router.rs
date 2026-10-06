@@ -251,6 +251,49 @@ async fn tools_list_masking_is_audited() {
     assert_eq!(entries[0]["decision"], json!("RELAY"));
 }
 
+/// The TypeScript SDK (zod) stamps `"$schema": draft-07` on every tool schema; clients
+/// that only accept JSON Schema 2020-12 (Claude Desktop) then reject the whole catalog.
+/// The declaration is dropped, the schema itself is relayed untouched.
+#[tokio::test]
+async fn tools_list_drops_the_draft_07_dialect_declaration() {
+    let w = World::new();
+    let draft07 = "http://json-schema.org/draft-07/schema#";
+    let upstream = FakeUpstream::new(
+        Some(json!({"jsonrpc": "2.0", "id": 1, "result": {"tools": [{
+            "name": "read_file",
+            "inputSchema": {"$schema": draft07, "type": "object",
+                            "properties": {"path": {"type": "string"}}},
+            "outputSchema": {"$schema": draft07, "type": "object",
+                             "properties": {"content": {"type": "string"}}},
+        }, {
+            "name": "execute_sql",
+            "inputSchema": {"$schema": "https://json-schema.org/draft/2020-12/schema",
+                            "type": "object"},
+        }]}})),
+        "application/json",
+    );
+    let app = w.proxy(upstream, None);
+    let reply = post(
+        &app,
+        json!({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}),
+        &[],
+    )
+    .await;
+    let tools = reply.json()["result"]["tools"].clone();
+    assert_eq!(
+        tools[0]["inputSchema"],
+        json!({"type": "object", "properties": {"path": {"type": "string"}}})
+    );
+    assert_eq!(
+        tools[0]["outputSchema"],
+        json!({"type": "object", "properties": {"content": {"type": "string"}}})
+    );
+    assert_eq!(
+        tools[1]["inputSchema"]["$schema"],
+        json!("https://json-schema.org/draft/2020-12/schema")
+    );
+}
+
 // -- Generic denial — a refusal must not become an oracle ----------------------------
 
 /// The client gets an opaque id; the reason stays in the audit log.

@@ -238,6 +238,29 @@ fn filter_tools(payload: &mut Value, allowed: &[&str]) -> usize {
     before - tools.len()
 }
 
+/// Remove a top-level `"$schema"` naming JSON Schema draft-07 from a tool's input and
+/// output schemas. The TypeScript SDK stamps it on every tool, and clients that only
+/// accept 2020-12 (Claude Desktop) then reject the whole catalog. Only the declaration
+/// goes: the keywords zod emits read the same in both dialects.
+fn drop_draft_07_declaration(tool: &mut Value) {
+    for key in ["inputSchema", "outputSchema"] {
+        let Some(schema) = tool.get_mut(key).and_then(Value::as_object_mut) else {
+            continue;
+        };
+        let is_draft_07 = schema
+            .get("$schema")
+            .and_then(Value::as_str)
+            .is_some_and(|uri| {
+                let uri = uri.trim_end_matches('#');
+                uri == "http://json-schema.org/draft-07/schema"
+                    || uri == "https://json-schema.org/draft-07/schema"
+            });
+        if is_draft_07 {
+            schema.remove("$schema");
+        }
+    }
+}
+
 fn rewrite_tools_list(
     upstream: &UpstreamResponse,
     allowed: &[&str],
@@ -271,6 +294,7 @@ fn rewrite_tools_list(
                 if let (Some(public), Some(map)) = (public, tool.as_object_mut()) {
                     map.insert("name".into(), Value::String(public));
                 }
+                drop_draft_07_declaration(tool);
             }
         }
         masked += filter_tools(payload, allowed);
