@@ -12,7 +12,6 @@ rust-version = "1.88"
 
 [workspace.dependencies]
 biscuit-auth = "=6.0.0"
-biscuit-parser = "0.2.0"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 rand = "0.8"
 sha2 = "0.10"
@@ -25,7 +24,6 @@ ryu-js = "1"
 unicode-normalization = "0.1"
 percent-encoding = "2"
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
-thiserror = "2"
 anyhow = "1"
 scrypt = { version = "0.11", default-features = false }
 aes-gcm = "0.10"
