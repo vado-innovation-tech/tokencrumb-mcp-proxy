@@ -12,6 +12,7 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 cargo doc --workspace --no-deps --locked
 python3 tools/check_vendor.py
+python3 tools/audit_dependencies.py
 python3 tools/check_docs.py
 gitleaks git --log-opts="--all" --redact
 ```

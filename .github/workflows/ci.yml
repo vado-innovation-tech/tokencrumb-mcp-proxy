@@ -75,7 +75,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo install cargo-audit --locked --version 0.22.2
-      - run: cargo audit
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+      - run: python3 tools/audit_dependencies.py
 
   container:
     runs-on: ubuntu-24.04

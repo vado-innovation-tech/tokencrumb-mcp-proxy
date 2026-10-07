@@ -9,6 +9,7 @@ cargo test --workspace --locked
 cargo doc --workspace --no-deps --locked
 cargo build --release --locked --bin tokencrumb
 python3 tools/check_vendor.py
+python3 tools/audit_dependencies.py
 python3 tools/check_docs.py
 python3 tools/smoke.py --binary target/release/tokencrumb
 python3 tools/smoke.py --binary target/release/tokencrumb --tls
@@ -36,7 +37,7 @@ The vendored Biscuit source retains upstream inline tests. Two additional except
 
 ## Dependency maintenance
 
-Run `cargo audit` to check the lockfile against RustSec. CI fails on known vulnerabilities and reports maintenance advisories. No advisory is suppressed.
+Install `cargo-audit` and run `python3 tools/audit_dependencies.py` to check dependencies against RustSec. It runs `cargo audit` on the build lockfile, then audits a temporary copy that identifies the local Biscuit package by its official 6.0.0 version and registry checksum. This additional pass is required because `cargo audit` skips local dependencies. The real build lockfile is not modified. CI fails on known vulnerabilities and reports maintenance advisories. No advisory is suppressed.
 
 The repository temporarily includes **custom `biscuit-auth` 6.0.0-tokencrumb.1**, which fixes compilation without Datalog macros and removes the unmaintained `proc-macro-error2` dependency. Return to an official upstream release as soon as its fix passes our validation. Read the [patch scope, provenance and removal procedure](biscuit-auth.md) before updating the snapshot. `python3 tools/check_vendor.py` verifies the reviewed source and prevents reintroducing the macro packages into the lockfile.
 
