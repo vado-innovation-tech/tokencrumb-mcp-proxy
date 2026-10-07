@@ -1,6 +1,6 @@
 # Development
 
-Use Rust 1.88 or newer and Python 3.11 or newer for repository checks. The TLS smoke check also requires OpenSSL. Build dependencies are recorded in `Cargo.lock`.
+CI covers Linux and macOS. Windows is not currently supported: persistent storage uses Unix file permissions and locking. Use Rust 1.88 or newer and Python 3.11 or newer for repository checks. The TLS smoke check also requires OpenSSL. Build dependencies are recorded in `Cargo.lock`.
 
 ```sh
 cargo fmt --all --check

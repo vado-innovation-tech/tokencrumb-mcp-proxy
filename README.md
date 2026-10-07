@@ -25,7 +25,7 @@ flowchart LR
 
 ## Install
 
-Requires Rust 1.88 or newer. Build from a checkout:
+Supports Linux and macOS. Requires Rust 1.88 or newer. Build from a checkout:
 
 ```sh
 cargo install --locked --path crates/tokencrumb-mcp-proxy
