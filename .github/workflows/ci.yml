@@ -50,6 +50,7 @@ jobs:
       - run: python3 tools/check_docs.py
       - run: cargo build --locked --bin tokencrumb
       - run: python3 tools/smoke.py --binary target/debug/tokencrumb
+      - run: python3 tools/smoke.py --binary target/debug/tokencrumb --tls
       - run: cargo run --locked -p tokencrumb-interop -- crates/tokencrumb-mcp-proxy/tests/fixtures/java_mandate.json
 
   secrets:
@@ -65,6 +66,15 @@ jobs:
       - run: go install github.com/zricethezav/gitleaks/v8@v8.30.1
       - run: gitleaks git --log-opts="--all" --redact
       - run: gitleaks dir --redact
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo install cargo-audit --locked --version 0.22.2
+      - run: cargo audit
 
   container:
     runs-on: ubuntu-latest

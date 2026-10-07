@@ -5,6 +5,8 @@
 !README.md
 !crates/
 !crates/tokencrumb-mcp-proxy/
+!crates/tokencrumb-mcp-proxy/README.md
+!crates/tokencrumb-mcp-proxy/LICENSE
 !crates/tokencrumb-mcp-proxy/Cargo.toml
 !crates/tokencrumb-mcp-proxy/src/
 !crates/tokencrumb-mcp-proxy/src/**
