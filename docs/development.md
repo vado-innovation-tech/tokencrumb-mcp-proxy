@@ -27,7 +27,7 @@ gitleaks dir --redact
 gitleaks git --log-opts="--all" --redact
 ```
 
-The repository configuration narrowly excludes reviewed public-key, nonce-digest and synthetic attestation fields in two reference fixture files from the generic API-key rule. It does not exempt source code or other secret rules. Test private keys are intentionally synthetic; operational keys belong outside Git.
+The repository configuration narrowly excludes reviewed public-key, nonce-digest and synthetic attestation fields in two reference fixture files from the generic API-key rule. It does not exempt source code or other secret rules. A dedicated rule also detects the project’s plaintext Ed25519 key format, with exceptions limited to the four documented synthetic key fixture files. Test private keys are intentionally synthetic; operational keys belong outside Git.
 
 ## Dependency maintenance
 
