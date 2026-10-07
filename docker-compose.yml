@@ -1,4 +1,4 @@
-# Provide an existing upstream and provision the files described in docs/deployment.md.
+# Provide an existing upstream and provision the files described in README.md#deployment.
 services:
   proxy:
     build:

@@ -9,7 +9,7 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-readme = "README.md"
+readme = "../../README.md"
 keywords = ["mcp", "authorization", "biscuit", "proxy", "security"]
 categories = ["authentication", "command-line-utilities"]
 

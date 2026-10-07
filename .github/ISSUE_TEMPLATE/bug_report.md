@@ -14,4 +14,4 @@ assignees: ''
 
 ## Reproduction
 
-Use synthetic keys and data. Report security vulnerabilities privately; see SECURITY.md.
+Use synthetic keys and data. Report security vulnerabilities privately; see [Reporting vulnerabilities](https://github.com/vado-innovation-tech/tokencrumb-mcp-proxy#reporting-vulnerabilities).

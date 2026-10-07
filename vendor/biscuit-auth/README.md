@@ -11,6 +11,6 @@ This directory is a build-only snapshot: upstream `src/`, `build.rs` and `LICENS
 - [Provenance and SHA-256 checksums](UPSTREAM.json)
 - [Complete changes to retained upstream files](tokencrumb.patch)
 - [Apache-2.0 license](LICENSE)
-- [Maintenance and return to upstream](../../docs/biscuit-auth.md)
+- [Maintenance and return to upstream](../../README.md#temporary-biscuit-dependency)
 
 **Return to the official crate as soon as an upstream release fixes compilation with `datalog-macro` disabled and passes TokenCrumb's compatibility and security checks.** This custom version is a temporary workaround, not a separate Biscuit implementation.
