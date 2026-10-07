@@ -7,10 +7,11 @@ Before changing authorization or storage behavior, read the [architecture](docs/
 Run:
 
 ```sh
-cargo fmt --all --check
+cargo fmt --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 cargo doc --workspace --no-deps --locked
+python3 tools/check_vendor.py
 python3 tools/check_docs.py
 gitleaks git --log-opts="--all" --redact
 ```

@@ -15,3 +15,11 @@
 !tools/interop/Cargo.toml
 !tools/interop/src/
 !tools/interop/src/**
+!vendor/
+!vendor/biscuit-auth/
+!vendor/biscuit-auth/Cargo.toml
+!vendor/biscuit-auth/build.rs
+!vendor/biscuit-auth/LICENSE
+!vendor/biscuit-auth/README.md
+!vendor/biscuit-auth/src/
+!vendor/biscuit-auth/src/**

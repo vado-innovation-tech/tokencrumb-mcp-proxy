@@ -24,6 +24,13 @@ paths = ['''(^|/)crates/tokencrumb-mcp-proxy/tests/golden/decisions\.json$''']
 regexTarget = "line"
 regexes = ['''^\s*"aip-token": "[A-Za-z0-9_=-]+",?\s*$''']
 
+[[rules.allowlists]]
+description = "Exact public key in the unchanged upstream Biscuit Web Key tests"
+condition = "AND"
+paths = ['''^vendor/biscuit-auth/src/bwk\.rs$''']
+regexTarget = "line"
+regexes = ['''^\s*"key_bytes": "63c7a8628c14b778a4b66a22e1f53dab4542423295b6fb5a52283da58bcf6d9a",\s*$''']
+
 [[rules]]
 id = "tokencrumb-ed25519-private-key"
 description = "TokenCrumb plaintext Ed25519 private key"
@@ -36,3 +43,10 @@ paths = [
   '''(^|/)crates/tokencrumb-mcp-proxy/tests/golden/(keys|encrypted_key)\.json$''',
   '''(^|/)crates/tokencrumb-mcp-proxy/tests/fixtures/(interop/interop|java_mandate)\.json$''',
 ]
+
+[[rules.allowlists]]
+description = "Exact published synthetic key in the unchanged upstream parsing test"
+condition = "AND"
+paths = ['''^vendor/biscuit-auth/src/crypto/mod\.rs$''']
+regexTarget = "line"
+regexes = ['''^\s*"ed25519-private/bf6065d753c4a2c679dcd28828ac625c6c713efee2d4dd4b9c9ff3c9a2b2f966"\s*$''']

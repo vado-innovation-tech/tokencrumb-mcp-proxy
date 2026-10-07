@@ -34,6 +34,8 @@ tokencrumb --help
 
 The executable is `tokencrumb`; the Rust package is `tokencrumb-mcp-proxy`.
 
+**Temporary custom dependency:** this checkout includes `biscuit-auth` **6.0.0-tokencrumb.1**, a minimally patched version of upstream 6.0.0 that allows unused macros and their unmaintained `proc-macro-error2` dependency to be disabled. We will return to the official crate as soon as a release fixes this issue and passes our compatibility and security checks. See [the patch, provenance and return-to-upstream plan](docs/biscuit-auth.md). Install from the full checkout; crates.io publication is disabled while this local dependency is required.
+
 ## Get started
 
 Use an existing MCP server exposing `read_file` with an `arguments.path` field. The supplied policy permits paths under `/workspace/`; adapt it to the server's actual tools and filesystem.
@@ -87,7 +89,7 @@ Start at the [documentation index](docs/README.md) for configuration, CLI comman
 ## Development
 
 ```sh
-cargo fmt --all --check
+cargo fmt --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 ```

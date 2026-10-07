@@ -8,6 +8,7 @@
 - [Security model](security-model.md): guarantees, assumptions and limitations.
 - [Compatibility](compatibility.md): protocol identifiers and reference fixtures.
 - [Development](development.md): builds, tests and fixture maintenance.
+- [Temporary custom Biscuit dependency](biscuit-auth.md): patch, provenance and return to the official release.
 - [Architecture decisions](adr/README.md): design rationale.
 
 The documentation describes the current Rust implementation. The CLI's `--help` output is the authoritative list of flags and defaults.

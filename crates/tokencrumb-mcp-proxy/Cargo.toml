@@ -1,5 +1,7 @@
 [package]
 name = "tokencrumb-mcp-proxy"
+# Restore registry publication after returning to upstream biscuit-auth.
+publish = false
 description = "MCP authorization proxy with attenuable Biscuit capabilities"
 version.workspace = true
 edition.workspace = true

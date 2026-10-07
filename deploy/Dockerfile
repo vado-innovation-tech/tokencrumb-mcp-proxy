@@ -4,6 +4,7 @@ WORKDIR /src
 COPY Cargo.toml Cargo.lock README.md ./
 COPY crates ./crates
 COPY tools ./tools
+COPY vendor/biscuit-auth ./vendor/biscuit-auth
 RUN cargo build --release --locked -p tokencrumb-mcp-proxy --bin tokencrumb
 
 FROM debian:bookworm-slim
@@ -13,6 +14,8 @@ RUN apt-get update \
     && mkdir /data && chown 10001:10001 /data
 COPY --from=build /src/target/release/tokencrumb /usr/local/bin/tokencrumb
 COPY LICENSE /usr/share/doc/tokencrumb/LICENSE
+COPY vendor/biscuit-auth/LICENSE /usr/share/doc/tokencrumb/biscuit-auth/LICENSE
+COPY vendor/biscuit-auth/README.md /usr/share/doc/tokencrumb/biscuit-auth/README.md
 USER 10001
 WORKDIR /data
 EXPOSE 9443
