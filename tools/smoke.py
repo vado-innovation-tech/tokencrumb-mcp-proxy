@@ -78,11 +78,14 @@ def main():
         ca_flags = []
         context = None
         if args.tls:
+            (state / "tls.cnf").write_text(
+                "[req]\nprompt=no\ndistinguished_name=dn\nx509_extensions=extensions\n"
+                "[dn]\nCN=localhost\n[extensions]\nsubjectAltName=IP:127.0.0.1\n"
+                "basicConstraints=critical,CA:FALSE\nextendedKeyUsage=serverAuth\n"
+            )
             subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
                             "-days", "1", "-keyout", "tls.key", "-out", "tls.crt",
-                            "-subj", "/CN=localhost", "-addext", "subjectAltName=IP:127.0.0.1",
-                            "-addext", "basicConstraints=critical,CA:FALSE",
-                            "-addext", "extendedKeyUsage=serverAuth"],
+                            "-config", "tls.cnf"],
                            cwd=state, check=True, capture_output=True, timeout=30)
             tls_flags = ["--tls-cert", "tls.crt", "--tls-key", "tls.key"]
             ca_flags = ["--ca", str(state / "tls.crt")]
