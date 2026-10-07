@@ -2,12 +2,12 @@
 //!
 //! Authority block (signed by the authority private key) carries facts:
 //!     agent_id("..."), required_profile("..."), [agent_pubkey("ed25519/..")],
-//!     right("<tool>", "<operation>"), budget_cap(<int>), audience(".."),
+//!     `right("<tool>", "<operation>"), budget_cap(<int>), audience(".."),`
 //!     and checks: TTL (`check if time($t), $t < <exp>`), optional resource prefix,
 //!     and an optional upstream restriction (`check if upstream("..")`).
 //!
 //! `audience` is mandatory: the proxy refuses a mandate that does not name the
-//! deployment it was minted for (ADR-0007). `upstream` is a *check* rather than a
+//! deployment it was minted for (architecture decision 4). `upstream` is a *check* rather than a
 //! fact, so an offline attenuation can narrow a mandate to one upstream but never
 //! widen it.
 //!
@@ -235,7 +235,7 @@ pub fn forge_at(
     now: DateTime<Utc>,
 ) -> Result<String> {
     // A mandate with no audience is refused by every proxy, so forging one is a silent
-    // dead end — fail here instead (ADR-0007).
+    // dead end — fail here instead (architecture decision 4).
     if py_strip(&request.audience).is_empty() {
         return Err(Error::value(
             "forge requires an audience: the deployment this mandate is for",

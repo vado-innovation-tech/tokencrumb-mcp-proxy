@@ -12,9 +12,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use common::proxy::{World, test_policy};
 use tokencrumb_mcp_proxy::policy::{PolicyReloader, load_policy};
 use tokencrumb_mcp_proxy::storage::write_secure;
-use common::proxy::{World, test_policy};
 
 /// Publish by atomic replacement, as the operator tooling does.
 fn publish(path: &Path, text: &str) {

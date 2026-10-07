@@ -1,0 +1,5 @@
+{
+ "file": "{\"enc\": \"scrypt-aesgcm\", \"salt\": \"Ru09Dexol0r4USQ9vZ7XyQ==\", \"nonce\": \"AuuO6g7wTmoq6NSY\", \"ct\": \"HFP5RoUAg9P6SBB+2Ifyf3QE4klf6B7qplW7HGywTtHqVaJHANY4rKs/mG250SbuGL7ldpvq0TJcxcAOBWqQmxSJaW8DHD2Nm2V6bnTqAEZNtLYmTNE85KZcuMPZj2/t\"}",
+ "passphrase": "correct horse",
+ "private": "ed25519-private/0101010101010101010101010101010101010101010101010101010101010101"
+}

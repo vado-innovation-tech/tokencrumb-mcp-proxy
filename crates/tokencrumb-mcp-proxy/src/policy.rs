@@ -72,7 +72,7 @@ impl Default for McpPolicy {
 pub struct ToolPolicy {
     pub name: String,
     pub operation: String,
-    /// Which upstream serves this tool (ADR-0006). `upstream_tool` renames it on the
+    /// Which upstream serves this tool (architecture decision 3). `upstream_tool` renames it on the
     /// way out; the attestation and the argument binding always cover the PUBLIC name.
     pub upstream: Option<String>,
     pub upstream_tool: Option<String>,
@@ -119,13 +119,13 @@ pub struct Policy {
     /// Ceiling on the TOTAL number of calls one mandate may make, all tools and all
     /// upstreams together. A mandate's own budget_cap can lower it, never raise it.
     pub budget_total: Option<i128>,
-    /// Longest life a mandate may have, in seconds (ADR-0002).
+    /// Longest life a mandate may have, in seconds (architecture decision 6).
     pub max_ttl_seconds: i128,
     pub revocation_path: Option<String>,
     pub clock_skew_seconds: i128,
     pub limits: Limits,
     /// name -> upstream spec (URL or stdio command), in declaration order. Empty means
-    /// the single unnamed upstream passed on the command line (ADR-0006).
+    /// the single unnamed upstream passed on the command line (architecture decision 3).
     pub upstreams: Vec<(String, String)>,
     /// Tool mappings, in declaration order.
     pub tools: Vec<ToolPolicy>,
@@ -629,12 +629,12 @@ impl PolicyReloader {
             if state.snapshot.as_ref() == Some(&snap) {
                 return Ok(None);
             }
-            if let Some(previous) = &state.snapshot {
-                if (previous.0, previous.1) == (snap.0, snap.1) {
-                    return Err(Error::value(
-                        "publish policy by atomic replacement; in-place writes are refused",
-                    ));
-                }
+            if let Some(previous) = &state.snapshot
+                && (previous.0, previous.1) == (snap.0, snap.1)
+            {
+                return Err(Error::value(
+                    "publish policy by atomic replacement; in-place writes are refused",
+                ));
             }
             let text = String::from_utf8(raw).map_err(|e| Error::value(e.to_string()))?;
             let mut policy = parse_policy_text(&text)?;

@@ -1,0 +1,20 @@
+{
+ "head": {
+  "entries": 3,
+  "gateway_id": "gw-golden",
+  "head_hash": "956991450392f78196a904828be7cc131052b87c9044064b952c737719428791",
+  "key_id": "72456720412037a6",
+  "seq": 2,
+  "signature": "DXwEwqNNkl4HiI2Zs12inah6k7TpERFtKpL8z6+7IJfpblOndc8fgxyTx/wfShE5eBnZl+p+6BaGMAShEPLiAw==",
+  "ts": "2026-10-07T06:48:59.766188Z",
+  "type": "audit-head"
+ },
+ "log": "{\"hash\": \"f6eb1a5b4abddbfa8ff774013102cfdbc9cadc439992a2b4b43d53355635440b\", \"sig\": \"Ya2EceZc/Vf+uMFztgFev2mSX5UypTruPp2mFHdCFKafA50JuIx6FbSHK9AmF2puGtVj0CRxMVypj1/l2yqXDA==\", \"entry\": {\"ts\": \"2026-10-07T06:48:59.764069Z\", \"seq\": 0, \"gateway_id\": \"gw-golden\", \"policy_digest\": \"digest-1\", \"key_id\": \"72456720412037a6\", \"method\": \"tools/call\", \"agent_id\": \"agent-1\", \"tool\": \"read_file\", \"resource\": \"/projects/acme/q3.md\", \"decision\": \"ALLOW\", \"enforced\": true, \"reason\": null, \"correlation_id\": null, \"arguments_hash\": \"abababababababababababababababababababababababababababababababab\", \"profile\": \"native\", \"prev_hash\": \"0000000000000000000000000000000000000000000000000000000000000000\", \"detail\": {\"upstream\": \"catalog\"}, \"identity\": {\"mandate_id\": \"m\", \"subject\": null, \"issuer\": null, \"agent_key\": null}, \"remaining_budget\": 199}}\n{\"hash\": \"e9291096116e4b3857848dcd94a6ebf931208b96614b7bf5453fa72305f3e3fa\", \"sig\": \"rz7Hg/LU6rmfQ59nSYj+qzEWBrGYmN3dhjzCMxVUkSFvdoUm3Gi0PM5OKce1ekDyZOwmUnWhMsCZnO4UmwxYDg==\", \"entry\": {\"ts\": \"2026-10-07T06:48:59.764521Z\", \"seq\": 1, \"gateway_id\": \"gw-golden\", \"policy_digest\": \"digest-1\", \"key_id\": \"72456720412037a6\", \"method\": \"tools/call\", \"agent_id\": null, \"tool\": \"x\", \"resource\": null, \"decision\": \"DENY\", \"enforced\": false, \"reason\": \"unknown tool 'x' \\u2014 \\u00e9\", \"correlation_id\": \"0011223344556677\", \"arguments_hash\": null, \"profile\": \"native\", \"prev_hash\": \"f6eb1a5b4abddbfa8ff774013102cfdbc9cadc439992a2b4b43d53355635440b\"}}\n{\"hash\": \"956991450392f78196a904828be7cc131052b87c9044064b952c737719428791\", \"sig\": \"aHYWsUWLNsZSg+mgLpWZReJYXuwvHPww49QjKlIbAMAKBNBs72EXayN6yaayM7Hogaye8YIMjm/u/2alfxohBw==\", \"entry\": {\"ts\": \"2026-10-07T06:48:59.764874Z\", \"seq\": 2, \"gateway_id\": \"gw-golden\", \"policy_digest\": \"digest-1\", \"key_id\": \"72456720412037a6\", \"method\": \"tools/list\", \"agent_id\": null, \"tool\": null, \"resource\": null, \"decision\": \"RELAY\", \"enforced\": true, \"reason\": null, \"correlation_id\": null, \"arguments_hash\": null, \"profile\": \"native\", \"prev_hash\": \"e9291096116e4b3857848dcd94a6ebf931208b96614b7bf5453fa72305f3e3fa\", \"detail\": {\"tools_masked\": 2}}}\n",
+ "public": "ed25519/8a875fff1eb38451577acd5afee405456568dd7c89e090863a0557bc7af49f17",
+ "verify": {
+  "entries": 3,
+  "failures": [],
+  "head": "956991450392f78196a904828be7cc131052b87c9044064b952c737719428791",
+  "ok": true
+ }
+}

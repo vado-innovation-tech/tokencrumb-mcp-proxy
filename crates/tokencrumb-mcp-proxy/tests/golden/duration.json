@@ -1,0 +1,56 @@
+{
+ "": {
+  "err": "DurationError",
+  "message": "invalid duration: '' (use e.g. 300s, 15m, 8h, 1d)"
+ },
+ " 8h ": {
+  "ok": 28800
+ },
+ "-1": {
+  "err": "DurationError",
+  "message": "invalid duration: '-1' (use e.g. 300s, 15m, 8h, 1d)"
+ },
+ "0": {
+  "ok": 0
+ },
+ "007m": {
+  "ok": 420
+ },
+ "1.5h": {
+  "err": "DurationError",
+  "message": "invalid duration: '1.5h' (use e.g. 300s, 15m, 8h, 1d)"
+ },
+ "10w": {
+  "err": "DurationError",
+  "message": "invalid duration: '10w' (use e.g. 300s, 15m, 8h, 1d)"
+ },
+ "15m": {
+  "ok": 900
+ },
+ "1d": {
+  "ok": 86400
+ },
+ "300": {
+  "ok": 300
+ },
+ "300s": {
+  "ok": 300
+ },
+ "3650d": {
+  "ok": 315360000
+ },
+ "8 h": {
+  "ok": 28800
+ },
+ "8H": {
+  "err": "DurationError",
+  "message": "invalid duration: '8H' (use e.g. 300s, 15m, 8h, 1d)"
+ },
+ "8h": {
+  "ok": 28800
+ },
+ "h": {
+  "err": "DurationError",
+  "message": "invalid duration: 'h' (use e.g. 300s, 15m, 8h, 1d)"
+ }
+}

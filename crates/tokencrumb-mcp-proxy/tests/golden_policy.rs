@@ -3,9 +3,9 @@
 
 mod common;
 
-use tokencrumb_mcp_proxy::policy::{Policy, parse_policy_text};
 use common::{assert_outcome, golden};
 use serde_json::{Value, json};
+use tokencrumb_mcp_proxy::policy::{Policy, parse_policy_text};
 
 fn view(p: &Policy) -> Value {
     let mut tools = serde_json::Map::new();

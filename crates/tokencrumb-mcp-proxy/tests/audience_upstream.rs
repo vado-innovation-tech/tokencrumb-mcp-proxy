@@ -1,4 +1,4 @@
-//! Adversarial suite — audience and upstream targeting (ADR-0007).
+//! Adversarial suite — audience and upstream targeting (architecture decision 4).
 //!
 //! Before this, `forge --audience` wrote a fact nothing ever read: a mandate minted for
 //! one deployment was replayable on every other one that mapped the same tool name.
@@ -10,27 +10,27 @@ mod common;
 
 use std::sync::Arc;
 
-use tokencrumb_mcp_proxy::attestation::build_attestation;
-use tokencrumb_mcp_proxy::biscuit_ops::{self, Attenuation, ForgeRequest, attenuate};
-use tokencrumb_mcp_proxy::policy::parse_policy;
-use tokencrumb_mcp_proxy::verifier::{Decision, Verifier, VerifierOptions};
 use common::proxy::{
     TEST_AUDIENCE, World, append_block, biscuit_headers, build_token, date_term, forge, in_seconds,
     mandate, options, str_term, test_policy, verify,
 };
 use serde_json::{Value, json};
+use tokencrumb_mcp_proxy::attestation::build_attestation;
+use tokencrumb_mcp_proxy::biscuit_ops::{self, Attenuation, ForgeRequest, attenuate};
+use tokencrumb_mcp_proxy::policy::parse_policy;
+use tokencrumb_mcp_proxy::verifier::{Decision, Verifier, VerifierOptions};
 
 const OTHER: &str = "prod-gw";
 
 fn args() -> Value {
-    json!({"path": "/projets/acme/rapport.md"})
+    json!({"path": "/projects/acme/rapport.md"})
 }
 
 fn read_token(w: &World, audience: &str, upstream: Option<&str>) -> String {
     forge(
         &w.authority.private_str,
         ForgeRequest {
-            resource_prefix: Some("/projets/acme/".into()),
+            resource_prefix: Some("/projects/acme/".into()),
             audience: audience.into(),
             upstream: upstream.map(str::to_owned),
             ..mandate("agent-1", "read_file", "read", 3600, 200)
@@ -171,7 +171,7 @@ fn attenuation_narrows_the_upstream_and_cannot_widen_it() {
 }
 
 /// Absent `upstream` is deliberately not a denial — the mandate is worth its rights
-/// wherever they are routed (ADR-0007).
+/// wherever they are routed (architecture decision 4).
 #[test]
 fn unrestricted_mandate_reaches_every_upstream() {
     let w = World::new();

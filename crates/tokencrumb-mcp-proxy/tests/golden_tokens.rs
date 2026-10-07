@@ -3,10 +3,10 @@
 
 mod common;
 
-use tokencrumb_mcp_proxy::biscuit_ops::{self, Attenuation, ForgeRequest};
-use tokencrumb_mcp_proxy::token_contract::{Term, block_facts, metadata};
 use common::{assert_outcome, golden, key, t0};
 use serde_json::{Value, json};
+use tokencrumb_mcp_proxy::biscuit_ops::{self, Attenuation, ForgeRequest};
+use tokencrumb_mcp_proxy::token_contract::{Term, block_facts, metadata};
 
 fn facts_json(facts: &[(String, Vec<Term>)]) -> Value {
     let mut map = serde_json::Map::new();
@@ -119,7 +119,7 @@ fn forge_emits_the_same_blocks() {
         (
             "native",
             ForgeRequest {
-                resource_prefix: Some("/projets/acme/".into()),
+                resource_prefix: Some("/projects/acme/".into()),
                 ..base.clone()
             },
         ),
@@ -160,7 +160,7 @@ fn forge_emits_the_same_blocks() {
         (
             "depth1",
             ForgeRequest {
-                resource_prefix: Some("/projets/acme/".into()),
+                resource_prefix: Some("/projects/acme/".into()),
                 max_delegation_depth: Some(1),
                 ..base.clone()
             },

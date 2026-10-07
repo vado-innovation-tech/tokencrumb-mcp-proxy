@@ -1,13 +1,13 @@
-//! Depth is a signed bound checked outside Datalog (ADR-0009).
+//! Depth is a signed bound checked outside Datalog (architecture decision 6).
 //!
 //! Ported from `tests/test_delegation_depth.py`.
 
 mod common;
 
-use tokencrumb_mcp_proxy::biscuit_ops::{self, Attenuation, ForgeRequest, attenuate};
-use tokencrumb_mcp_proxy::verifier::{Decision, Verifier};
 use common::proxy::{World, biscuit_headers, forge, mandate, options, test_policy, verify};
 use serde_json::json;
+use tokencrumb_mcp_proxy::biscuit_ops::{self, Attenuation, ForgeRequest, attenuate};
+use tokencrumb_mcp_proxy::verifier::{Decision, Verifier};
 
 fn verifier(w: &World) -> std::sync::Arc<Verifier> {
     w.verifier(test_policy(), Some(options()))
@@ -22,7 +22,7 @@ fn read(v: &Verifier, token: &str, path: &str) -> Decision {
     )
 }
 
-const Q3: &str = "/projets/acme/q3.md";
+const Q3: &str = "/projects/acme/q3.md";
 
 #[test]
 fn forged_token_is_depth_zero() {
@@ -96,11 +96,11 @@ fn intra_holder_attenuation_narrows_then_refuses() {
         &w.native_token(),
         &w.authority.public_str,
         &Attenuation {
-            resource: Some("/projets/acme/reports/".into()),
+            resource: Some("/projects/acme/reports/".into()),
             ..Default::default()
         },
     )
     .unwrap();
-    assert!(read(&v, &sub, "/projets/acme/reports/2026.md").allow);
+    assert!(read(&v, &sub, "/projects/acme/reports/2026.md").allow);
     assert!(!read(&v, &sub, Q3).allow);
 }

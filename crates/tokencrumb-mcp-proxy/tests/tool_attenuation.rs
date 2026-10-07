@@ -7,14 +7,14 @@ mod common;
 
 use std::sync::Arc;
 
-use tokencrumb_mcp_proxy::biscuit_ops::{Attenuation, attenuate};
-use tokencrumb_mcp_proxy::policy::parse_policy;
-use tokencrumb_mcp_proxy::verifier::{Decision, Verifier};
 use common::proxy::{
     TEST_AUDIENCE, World, append_block, biscuit_headers, build_token, date_term, in_seconds,
     options, str_term, verify,
 };
 use serde_json::json;
+use tokencrumb_mcp_proxy::biscuit_ops::{Attenuation, attenuate};
+use tokencrumb_mcp_proxy::policy::parse_policy;
+use tokencrumb_mcp_proxy::verifier::{Decision, Verifier};
 
 fn token(w: &World, extra: &str) -> String {
     build_token(

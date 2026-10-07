@@ -4,13 +4,13 @@
 
 mod common;
 
+use common::{golden, key};
+use serde_json::json;
 use tokencrumb_mcp_proxy::audit::{
     self, AuditLog, Record, trusted_from, verify_head_attestation, verify_log,
 };
 use tokencrumb_mcp_proxy::json::{dumps, strict_json};
 use tokencrumb_mcp_proxy::revocation::{migrate_legacy_list, validate_document};
-use common::{golden, key};
-use serde_json::json;
 
 #[test]
 fn python_audit_chain_verifies_and_resumes() {

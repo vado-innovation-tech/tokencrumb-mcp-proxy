@@ -1,0 +1,31 @@
+# TokenCrumb - MCP Proxy: generic filesystem policy.
+# Configure only tools actually provided by your upstream server.
+mode: enforce
+deny_unknown_tools: true
+min_profile: hardened_biscuit_anchored
+max_ttl: 8h
+clock_skew_seconds: 30
+limits:
+  max_facts: 1000
+  max_iterations: 100
+  max_time_ms: 10
+  max_token_size: 16384
+mcp:
+  spec_version: "2025-06-18"
+  allow_methods:
+    - initialize
+    - ping
+    - notifications/initialized
+    - notifications/cancelled
+tools:
+  - name: read_file
+    operation: read
+    resource:
+      from: arguments.path
+    allow:
+      resource_prefix: /workspace/
+      budget: 200
+    require:
+      - call_signature_valid
+      - nonce_fresh
+      - arguments_bound

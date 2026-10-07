@@ -200,17 +200,17 @@ impl ClientTransport {
         if let Some(session) = &self.session {
             request = request.set("MCP-Session-Id", session);
         }
-        if method == "tools/call" {
-            if let Some(private) = &self.private {
-                let arguments = params.get("arguments").unwrap_or(&empty);
-                let (Value::Object(_), Some(Value::String(tool))) = (arguments, params.get("name"))
-                else {
-                    return Err(Error::value("invalid tool arguments"));
-                };
-                let header =
-                    build_attestation(&self.agent_id, tool, arguments, &self.token, private, None)?;
-                request = request.set("Agent-Attestation", &header);
-            }
+        if method == "tools/call"
+            && let Some(private) = &self.private
+        {
+            let arguments = params.get("arguments").unwrap_or(&empty);
+            let (Value::Object(_), Some(Value::String(tool))) = (arguments, params.get("name"))
+            else {
+                return Err(Error::value("invalid tool arguments"));
+            };
+            let header =
+                build_attestation(&self.agent_id, tool, arguments, &self.token, private, None)?;
+            request = request.set("Agent-Attestation", &header);
         }
 
         let response = match request.send_bytes(dumps(&message).as_bytes()) {
@@ -255,21 +255,21 @@ impl ClientTransport {
             return Err(Error::value("response is not paired to request"));
         }
         let result = messages.into_iter().next().expect("one message");
-        if method == "initialize" {
-            if let Some(outcome) = result.get("result") {
-                let Value::Object(outcome) = outcome else {
-                    return Err(Error::value("malformed initialize result"));
-                };
-                let version = outcome
-                    .get("protocolVersion")
-                    .cloned()
-                    .unwrap_or_else(|| Value::String(self.version.clone()));
-                if version.as_str() != Some(self.version.as_str()) {
-                    return Err(Error::value("unsupported negotiated MCP version"));
-                }
-                self.session = session;
-                self.handshake = vec![raw.to_owned()];
+        if method == "initialize"
+            && let Some(outcome) = result.get("result")
+        {
+            let Value::Object(outcome) = outcome else {
+                return Err(Error::value("malformed initialize result"));
+            };
+            let version = outcome
+                .get("protocolVersion")
+                .cloned()
+                .unwrap_or_else(|| Value::String(self.version.clone()));
+            if version.as_str() != Some(self.version.as_str()) {
+                return Err(Error::value("unsupported negotiated MCP version"));
             }
+            self.session = session;
+            self.handshake = vec![raw.to_owned()];
         }
         Ok(Some(result))
     }

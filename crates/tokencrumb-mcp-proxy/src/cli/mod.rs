@@ -15,20 +15,21 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use clap::{CommandFactory as _, Parser, Subcommand};
+use serde_json::{Map, Value, json};
 use tokencrumb_mcp_proxy::biscuit_ops::{self as ops, Attenuation, ForgeRequest};
 use tokencrumb_mcp_proxy::error::py_repr;
 use tokencrumb_mcp_proxy::json::{dumps, dumps_indent, sort_keys, strict_json};
 use tokencrumb_mcp_proxy::proxy::runtime::ServeOptions;
 use tokencrumb_mcp_proxy::validation::py_strip;
 use tokencrumb_mcp_proxy::{ErrorKind, audit, keys, net, registry, revocation, storage};
-use clap::{CommandFactory as _, Parser, Subcommand};
-use serde_json::{Map, Value, json};
 
 use render::{Stream, grid, paint, panel};
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "tokencrumb-mcp-proxy",
+    name = "tokencrumb",
+    version,
     about = "TokenCrumb - MCP Proxy — MCP authorization proxy & Biscuit capability toolkit.",
     arg_required_else_help = true
 )]
@@ -41,7 +42,7 @@ pub struct Cli {
 pub enum Command {
     /// Generate an Ed25519 keypair (authority root, agent identity, or audit signer).
     Keygen {
-        /// Base name; writes <out>.key and <out>.pub
+        /// Base name; writes `<out>.key` and `<out>.pub`
         #[arg(long)]
         out: String,
         /// authority | agent | audit
@@ -56,7 +57,9 @@ pub enum Command {
     /// Scoping a right to specific objects takes a fact plus the rule that binds it to
     /// the call argument:
     ///
-    ///     --fact 'assigned_incident("INC-123")' --scope-arg incident_id=assigned_incident
+    /// ```text
+    /// --fact 'assigned_incident("INC-123")' --scope-arg incident_id=assigned_incident
+    /// ```
     ///
     /// The gateway then compares the call's `incident_id` against a fact signed into
     /// the token, with no upstream lookup on the decision path.
@@ -182,7 +185,7 @@ pub enum Command {
         /// Persistent registry signing private key file
         #[arg(long)]
         signing_key: String,
-        /// [host]:port
+        /// `[host]:port`
         #[arg(long, default_value = ":8081")]
         listen: String,
         /// JSON store path
@@ -324,7 +327,7 @@ pub struct ServeArgs {
     /// Name of the upstream this gateway fronts, for `check if upstream(..)`
     #[arg(long)]
     upstream_name: Option<String>,
-    /// [upstream:]Header=ENV_VARIABLE; repeatable, secrets stay outside arguments
+    /// `[upstream:]Header=ENV_VARIABLE`; repeatable, secrets stay outside arguments
     #[arg(long)]
     upstream_header: Vec<String>,
     /// JSON map of signed issuer/subject to header/environment variable
@@ -342,7 +345,7 @@ pub struct ServeArgs {
     /// Public key of the revocation signer
     #[arg(long)]
     revocation_pub: Option<PathBuf>,
-    /// [host]:port
+    /// `[host]:port`
     #[arg(long, default_value = ":9443")]
     listen: String,
     /// enforce | warn-only (overrides policy)
@@ -676,7 +679,8 @@ fn run(command: Command) -> Outcome {
             passphrase,
         } => {
             let private = load_private(&agent_key, passphrase.as_deref()).map_err(Exit::Fail)?;
-            let proof = tokencrumb_mcp_proxy::dpop::proof(&private, &method, &url, chrono::Utc::now())?;
+            let proof =
+                tokencrumb_mcp_proxy::dpop::proof(&private, &method, &url, chrono::Utc::now())?;
             say(&proof);
             Ok(())
         }
@@ -722,10 +726,10 @@ pub fn load_public(path: &str) -> Result<String, String> {
 /// cannot be inspected or read is simply taken as the token itself.
 pub fn read_token_arg(value: &str) -> String {
     let path = Path::new(value);
-    if path.is_file() {
-        if let Ok(text) = std::fs::read_to_string(path) {
-            return py_strip(&text).to_owned();
-        }
+    if path.is_file()
+        && let Ok(text) = std::fs::read_to_string(path)
+    {
+        return py_strip(&text).to_owned();
     }
     py_strip(value).to_owned()
 }

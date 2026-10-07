@@ -8,12 +8,14 @@
 
 mod common;
 
-use tokencrumb_mcp_proxy::ErrorKind;
-use tokencrumb_mcp_proxy::biscuit_ops::{self, FactArg, ForgeRequest, parse_fact_spec, parse_scope_arg};
-use tokencrumb_mcp_proxy::policy::{Policy, parse_policy};
-use tokencrumb_mcp_proxy::verifier::{Decision, Verifier};
 use common::proxy::{World, append_block, biscuit_headers, forge, mandate, options, verify};
 use serde_json::{Value, json};
+use tokencrumb_mcp_proxy::ErrorKind;
+use tokencrumb_mcp_proxy::biscuit_ops::{
+    self, FactArg, ForgeRequest, parse_fact_spec, parse_scope_arg,
+};
+use tokencrumb_mcp_proxy::policy::{Policy, parse_policy};
+use tokencrumb_mcp_proxy::verifier::{Decision, Verifier};
 
 fn scoped_policy() -> Policy {
     let mut p = parse_policy(&json!({

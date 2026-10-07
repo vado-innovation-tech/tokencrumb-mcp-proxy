@@ -1,0 +1,341 @@
+{
+ "arg": {
+  "": {
+   "err": "ArgumentError",
+   "message": "malformed argument value: ''"
+  },
+  " INC": {
+   "err": "ArgumentError",
+   "message": "noncanonical argument value"
+  },
+  "A.B:C": {
+   "ok": "A.B:C"
+  },
+  "INC ": {
+   "err": "ArgumentError",
+   "message": "noncanonical argument value"
+  },
+  "INC-1/../INC-2": {
+   "err": "ArgumentError",
+   "message": "malformed argument value: 'INC-1/../INC-2'"
+  },
+  "INC-123": {
+   "ok": "INC-123"
+  },
+  "a\nb": {
+   "err": "ArgumentError",
+   "message": "malformed argument value: 'a\\nb'"
+  },
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": {
+   "ok": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": {
+   "err": "ArgumentError",
+   "message": "malformed argument value: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'"
+  },
+  "cafe\u0301": {
+   "err": "ArgumentError",
+   "message": "noncanonical argument value"
+  },
+  "inc-123": {
+   "ok": "inc-123"
+  },
+  "x:y.z_w-v": {
+   "ok": "x:y.z_w-v"
+  },
+  "\u00e9": {
+   "err": "ArgumentError",
+   "message": "malformed argument value: '\u00e9'"
+  }
+ },
+ "arg_types": {
+  "int": {
+   "err": "ArgumentError",
+   "message": "unsupported argument type: int"
+  },
+  "list": {
+   "err": "ArgumentError",
+   "message": "unsupported argument type: list"
+  },
+  "null": {
+   "err": "ArgumentError",
+   "message": "argument is required"
+  }
+ },
+ "prefix": {
+  "": {
+   "err": "ResourceError",
+   "message": "resource must be a nonempty string"
+  },
+  "%": {
+   "ok": "%"
+  },
+  "%25252525252e": {
+   "err": "ResourceError",
+   "message": "excessive percent-encoding"
+  },
+  "%2F": {
+   "ok": "/"
+  },
+  "%C3": {
+   "ok": "\ufffd"
+  },
+  "%C3%A9": {
+   "ok": "\u00e9"
+  },
+  "%ff": {
+   "ok": "\ufffd"
+  },
+  "%zz": {
+   "ok": "%zz"
+  },
+  ".": {
+   "ok": "."
+  },
+  "..": {
+   "err": "ResourceError",
+   "message": "path traversal rejected: '..'"
+  },
+  "..%2f..%2f": {
+   "err": "ResourceError",
+   "message": "path traversal rejected: '..%2f..%2f'"
+  },
+  "../etc": {
+   "err": "ResourceError",
+   "message": "path traversal rejected: '../etc'"
+  },
+  "..x": {
+   "ok": "..x"
+  },
+  "./x": {
+   "ok": "x"
+  },
+  "/": {
+   "ok": "/"
+  },
+  "/..": {
+   "ok": "/"
+  },
+  "/../x": {
+   "ok": "/x/"
+  },
+  "/./x/.": {
+   "ok": "/x/"
+  },
+  "//host/share": {
+   "err": "ResourceError",
+   "message": "invalid resource separator or null byte"
+  },
+  "/a//b": {
+   "ok": "/a/b/"
+  },
+  "/projects/acme": {
+   "ok": "/projects/acme/"
+  },
+  "/projects/acme/%252e%252e/x": {
+   "ok": "/projects/x/"
+  },
+  "/projects/acme/%2e%2e/x": {
+   "ok": "/projects/x/"
+  },
+  "/projects/acme/../secret": {
+   "ok": "/projects/secret/"
+  },
+  "/projects/acme/cafe\u0301": {
+   "ok": "/projects/acme/caf\u00e9/"
+  },
+  "/projects/acme/caf\u00e9": {
+   "ok": "/projects/acme/caf\u00e9/"
+  },
+  "/projects/acme/doc.txt": {
+   "ok": "/projects/acme/doc.txt/"
+  },
+  "/x/": {
+   "ok": "/x/"
+  },
+  "SITE-NORTH": {
+   "ok": "SITE-NORTH"
+  },
+  "Unit": {
+   "ok": "Unit"
+  },
+  "a\u0000b": {
+   "err": "ResourceError",
+   "message": "null byte in resource"
+  },
+  "a b": {
+   "ok": "a b"
+  },
+  "a%00b": {
+   "err": "ResourceError",
+   "message": "invalid resource separator or null byte"
+  },
+  "a%2Fb": {
+   "ok": "a/b/"
+  },
+  "a/..": {
+   "ok": "."
+  },
+  "a/../..": {
+   "err": "ResourceError",
+   "message": "path traversal rejected: 'a/../..'"
+  },
+  "a/b/../c": {
+   "ok": "a/c/"
+  },
+  "a\\b": {
+   "err": "ResourceError",
+   "message": "invalid resource separator or null byte"
+  },
+  "analytics": {
+   "ok": "analytics"
+  },
+  "analytics.table": {
+   "ok": "analytics.table"
+  },
+  "x/": {
+   "ok": "x"
+  },
+  "\u212b": {
+   "ok": "\u00c5"
+  }
+ },
+ "resource": {
+  "": {
+   "err": "ResourceError",
+   "message": "resource must be a nonempty string"
+  },
+  "%": {
+   "ok": "%"
+  },
+  "%25252525252e": {
+   "err": "ResourceError",
+   "message": "excessive percent-encoding"
+  },
+  "%2F": {
+   "ok": "/"
+  },
+  "%C3": {
+   "ok": "\ufffd"
+  },
+  "%C3%A9": {
+   "ok": "\u00e9"
+  },
+  "%ff": {
+   "ok": "\ufffd"
+  },
+  "%zz": {
+   "ok": "%zz"
+  },
+  ".": {
+   "ok": "."
+  },
+  "..": {
+   "err": "ResourceError",
+   "message": "path traversal rejected: '..'"
+  },
+  "..%2f..%2f": {
+   "err": "ResourceError",
+   "message": "path traversal rejected: '..%2f..%2f'"
+  },
+  "../etc": {
+   "err": "ResourceError",
+   "message": "path traversal rejected: '../etc'"
+  },
+  "..x": {
+   "ok": "..x"
+  },
+  "./x": {
+   "ok": "x"
+  },
+  "/": {
+   "ok": "/"
+  },
+  "/..": {
+   "ok": "/"
+  },
+  "/../x": {
+   "ok": "/x"
+  },
+  "/./x/.": {
+   "ok": "/x"
+  },
+  "//host/share": {
+   "err": "ResourceError",
+   "message": "invalid resource separator or null byte"
+  },
+  "/a//b": {
+   "ok": "/a/b"
+  },
+  "/projects/acme": {
+   "ok": "/projects/acme"
+  },
+  "/projects/acme/%252e%252e/x": {
+   "ok": "/projects/x"
+  },
+  "/projects/acme/%2e%2e/x": {
+   "ok": "/projects/x"
+  },
+  "/projects/acme/../secret": {
+   "ok": "/projects/secret"
+  },
+  "/projects/acme/cafe\u0301": {
+   "ok": "/projects/acme/caf\u00e9"
+  },
+  "/projects/acme/caf\u00e9": {
+   "ok": "/projects/acme/caf\u00e9"
+  },
+  "/projects/acme/doc.txt": {
+   "ok": "/projects/acme/doc.txt"
+  },
+  "/x/": {
+   "ok": "/x"
+  },
+  "SITE-NORTH": {
+   "ok": "SITE-NORTH"
+  },
+  "Unit": {
+   "ok": "Unit"
+  },
+  "a\u0000b": {
+   "err": "ResourceError",
+   "message": "null byte in resource"
+  },
+  "a b": {
+   "ok": "a b"
+  },
+  "a%00b": {
+   "err": "ResourceError",
+   "message": "invalid resource separator or null byte"
+  },
+  "a%2Fb": {
+   "ok": "a/b"
+  },
+  "a/..": {
+   "ok": "."
+  },
+  "a/../..": {
+   "err": "ResourceError",
+   "message": "path traversal rejected: 'a/../..'"
+  },
+  "a/b/../c": {
+   "ok": "a/c"
+  },
+  "a\\b": {
+   "err": "ResourceError",
+   "message": "invalid resource separator or null byte"
+  },
+  "analytics": {
+   "ok": "analytics"
+  },
+  "analytics.table": {
+   "ok": "analytics.table"
+  },
+  "x/": {
+   "ok": "x"
+  },
+  "\u212b": {
+   "ok": "\u00c5"
+  }
+ }
+}

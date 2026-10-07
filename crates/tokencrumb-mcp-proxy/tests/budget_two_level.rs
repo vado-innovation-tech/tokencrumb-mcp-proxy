@@ -1,4 +1,4 @@
-//! Budgets are two counters, not one (ADR-0008).
+//! Budgets are two counters, not one (architecture decision 5).
 //!
 //! The regression: the counter was keyed by the mandate alone while the ceiling was
 //! computed per tool, so calls to a generous tool silently drained a strict one that
@@ -11,14 +11,14 @@ mod common;
 use std::sync::Arc;
 
 use biscuit_auth::builder::Term;
-use tokencrumb_mcp_proxy::budget::BudgetStore;
-use tokencrumb_mcp_proxy::policy::{Policy, parse_policy};
-use tokencrumb_mcp_proxy::verifier::{Headers, Verifier};
 use common::proxy::{
     TEST_AUDIENCE, World, biscuit_headers, build_token, date_term, in_seconds, options, str_term,
     verify,
 };
 use serde_json::json;
+use tokencrumb_mcp_proxy::budget::BudgetStore;
+use tokencrumb_mcp_proxy::policy::{Policy, parse_policy};
+use tokencrumb_mcp_proxy::verifier::{Headers, Verifier};
 
 fn policy(budget_total: Option<i64>, cheap: i64, rare: i64) -> Policy {
     let mut raw = json!({

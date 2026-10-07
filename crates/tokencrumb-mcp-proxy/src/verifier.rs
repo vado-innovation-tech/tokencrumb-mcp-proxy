@@ -290,7 +290,7 @@ impl Verifier {
         options: VerifierOptions,
     ) -> Result<Self> {
         // An unnamed deployment cannot reject a mandate minted for another one, so there
-        // is no safe default here (ADR-0007).
+        // is no safe default here (architecture decision 4).
         let audience = py_strip(&options.audience).to_owned();
         if audience.is_empty() {
             return Err(Error::value(
@@ -412,7 +412,7 @@ impl Verifier {
     }
 
     /// Verify one `tools/call`. `endpoint` is the upstream name the call arrived on
-    /// (ADR-0006): one process serves several endpoints, so the upstream is per call.
+    /// (architecture decision 3): one process serves several endpoints, so the upstream is per call.
     ///
     /// All caps are checked and consumed under one budget transaction. An `Err` means
     /// the verification could not be completed (state or revocation unavailable): the
@@ -571,7 +571,7 @@ impl Verifier {
         // -- 1b. audience -------------------------------------------------------------
         // Read from the authority block only, like agent_pubkey: reading the union would
         // let a bearer widen its own audience by appending a block. Absent is a DENY,
-        // not a wildcard (ADR-0007).
+        // not a wildcard (architecture decision 4).
         match facts.get("audience") {
             None => refuse!(
                 "no audience in authority block (fail-closed)",
@@ -716,20 +716,20 @@ impl Verifier {
                 token_agent_id.clone()
             );
         };
-        // An endpoint serves its own upstream's tools and nothing else (ADR-0006).
-        if let (Some(endpoint), Some(served_by)) = (&upstream_name, &tp.upstream) {
-            if served_by != endpoint {
-                refuse!(
-                    format!(
-                        "tool {} is served by upstream {}, not {}",
-                        py_repr(tool),
-                        py_repr(served_by),
-                        py_repr(endpoint)
-                    ),
-                    presented,
-                    token_agent_id.clone()
-                );
-            }
+        // An endpoint serves its own upstream's tools and nothing else (architecture decision 3).
+        if let (Some(endpoint), Some(served_by)) = (&upstream_name, &tp.upstream)
+            && served_by != endpoint
+        {
+            refuse!(
+                format!(
+                    "tool {} is served by upstream {}, not {}",
+                    py_repr(tool),
+                    py_repr(served_by),
+                    py_repr(endpoint)
+                ),
+                presented,
+                token_agent_id.clone()
+            );
         }
         let mut canonical_resource: Option<String> = None;
         if let Some(raw) = extract_resource(tp, arguments) {
@@ -767,7 +767,7 @@ impl Verifier {
 
         // -- budgets: one counter for the mandate, one per (mandate, tool) ------------
         // The two ceilings answer different questions — "how many calls in total" and
-        // "how many of THIS tool" — so they cannot share a counter (ADR-0008).
+        // "how many of THIS tool" — so they cannot share a counter (architecture decision 5).
         let mandate_key = insp.revocation_ids.first().cloned().unwrap_or_default();
         tx.prepare(now.timestamp() as i128)?;
         let tool_key = format!("{mandate_key}|{tool}");
@@ -793,10 +793,10 @@ impl Verifier {
                 remaining
             );
         }
-        if let Some(depth) = facts.max_delegation_depth.iter().min() {
-            if insp.block_count as i64 - 1 > *depth {
-                refuse!("maximum delegation depth exceeded", presented);
-            }
+        if let Some(depth) = facts.max_delegation_depth.iter().min()
+            && insp.block_count as i64 - 1 > *depth
+        {
+            refuse!("maximum delegation depth exceeded", presented);
         }
         let root = block_facts(&insp.blocks[0], true, false)?;
         let Some(expires_at) = facts

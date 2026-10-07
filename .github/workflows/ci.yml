@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rust: stable
+          - os: macos-latest
+            rust: stable
+          - os: ubuntu-latest
+            rust: '1.88'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - if: matrix.rust == 'stable'
+        run: cargo fmt --all --check
+      - if: matrix.rust == 'stable'
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+      - run: cargo doc --workspace --no-deps --locked
+        env:
+          RUSTDOCFLAGS: -D warnings
+      - run: python3 tools/check_docs.py
+      - run: cargo build --locked --bin tokencrumb
+      - run: python3 tools/smoke.py --binary target/debug/tokencrumb
+      - run: cargo run --locked -p tokencrumb-interop -- crates/tokencrumb-mcp-proxy/tests/fixtures/java_mandate.json
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+      - run: go install github.com/zricethezav/gitleaks/v8@v8.30.1
+      - run: gitleaks git --log-opts="--all" --redact
+      - run: gitleaks dir --redact
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f deploy/Dockerfile -t tokencrumb-mcp-proxy:ci .
+      - run: docker run --rm tokencrumb-mcp-proxy:ci --help
+      - run: docker run --rm tokencrumb-mcp-proxy:ci --version

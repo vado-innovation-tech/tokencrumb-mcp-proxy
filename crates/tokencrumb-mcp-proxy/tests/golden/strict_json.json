@@ -1,0 +1,219 @@
+{
+ "": {
+  "err": "JSONDecodeError",
+  "message": "Expecting value: line 1 column 1 (char 0)"
+ },
+ " {\"a\" : 1 } ": {
+  "ok": {
+   "a": 1
+  }
+ },
+ "\"x\"": {
+  "ok": "x"
+ },
+ "1": {
+  "ok": 1
+ },
+ "1e999": {
+  "err": "ValueError",
+  "message": "JSON number exceeds finite range"
+ },
+ "NaN": {
+  "err": "ValueError",
+  "message": "invalid JSON number: NaN"
+ },
+ "[1,2]": {
+  "ok": [
+   1,
+   2
+  ]
+ },
+ "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]": {
+  "ok": [
+   [
+    [
+     [
+      [
+       [
+        [
+         [
+          [
+           [
+            [
+             [
+              [
+               [
+                [
+                 [
+                  [
+                   [
+                    [
+                     [
+                      [
+                       [
+                        [
+                         [
+                          [
+                           [
+                            [
+                             [
+                              [
+                               [
+                                [
+                                 [
+                                  []
+                                 ]
+                                ]
+                               ]
+                              ]
+                             ]
+                            ]
+                           ]
+                          ]
+                         ]
+                        ]
+                       ]
+                      ]
+                     ]
+                    ]
+                   ]
+                  ]
+                 ]
+                ]
+               ]
+              ]
+             ]
+            ]
+           ]
+          ]
+         ]
+        ]
+       ]
+      ]
+     ]
+    ]
+   ]
+  ]
+ },
+ "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]": {
+  "ok": [
+   [
+    [
+     [
+      [
+       [
+        [
+         [
+          [
+           [
+            [
+             [
+              [
+               [
+                [
+                 [
+                  [
+                   [
+                    [
+                     [
+                      [
+                       [
+                        [
+                         [
+                          [
+                           [
+                            [
+                             [
+                              [
+                               [
+                                [
+                                 []
+                                ]
+                               ]
+                              ]
+                             ]
+                            ]
+                           ]
+                          ]
+                         ]
+                        ]
+                       ]
+                      ]
+                     ]
+                    ]
+                   ]
+                  ]
+                 ]
+                ]
+               ]
+              ]
+             ]
+            ]
+           ]
+          ]
+         ]
+        ]
+       ]
+      ]
+     ]
+    ]
+   ]
+  ]
+ },
+ "{": {
+  "err": "JSONDecodeError",
+  "message": "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+ },
+ "{\"a\":\"\\ud800\"}": {
+  "ok": {
+   "a": "\ud800"
+  }
+ },
+ "{\"a\":-1e999}": {
+  "err": "ValueError",
+  "message": "JSON number exceeds finite range"
+ },
+ "{\"a\":1,\"a\":2}": {
+  "err": "ValueError",
+  "message": "duplicate JSON key: a"
+ },
+ "{\"a\":1,}": {
+  "err": "JSONDecodeError",
+  "message": "Expecting property name enclosed in double quotes: line 1 column 8 (char 7)"
+ },
+ "{\"a\":1}": {
+  "ok": {
+   "a": 1
+  }
+ },
+ "{\"a\":1}x": {
+  "err": "JSONDecodeError",
+  "message": "Extra data: line 1 column 8 (char 7)"
+ },
+ "{\"a\":Infinity}": {
+  "err": "ValueError",
+  "message": "invalid JSON number: Infinity"
+ },
+ "{\"a\":NaN}": {
+  "err": "ValueError",
+  "message": "invalid JSON number: NaN"
+ },
+ "{\"a\":{\"a\":1,\"b\":2,\"a\":3}}": {
+  "err": "ValueError",
+  "message": "duplicate JSON key: a"
+ },
+ "{\"k\":\"\\u0000\"}": {
+  "ok": {
+   "k": "\u0000"
+  }
+ },
+ "{\"n\":12345678901234567890123}": {
+  "ok": {
+   "n": 12345678901234567890123
+  }
+ },
+ "\ufeff{}": {
+  "err": "JSONDecodeError",
+  "message": "Unexpected UTF-8 BOM (decode using utf-8-sig): line 1 column 1 (char 0)"
+ }
+}

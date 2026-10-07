@@ -1,0 +1,170 @@
+{
+ "fact": {
+  " p ( \"a\" , 1 ) ": {
+   "ok": [
+    "p",
+    [
+     "a",
+     1
+    ]
+   ]
+  },
+  "P(\"x\")": {
+   "err": "FactSpecError",
+   "message": "cannot parse fact 'P(\"x\")' (expected: name(\"value\", ...))"
+  },
+  "agent_id(\"x\")": {
+   "err": "FactSpecError",
+   "message": "reserved predicate: agent_id"
+  },
+  "assigned_incident(\"INC-123\")": {
+   "ok": [
+    "assigned_incident",
+    [
+     "INC-123"
+    ]
+   ]
+  },
+  "n(-7)": {
+   "ok": [
+    "n",
+    [
+     -7
+    ]
+   ]
+  },
+  "n(42)": {
+   "ok": [
+    "n",
+    [
+     42
+    ]
+   ]
+  },
+  "p(\"a\") extra": {
+   "err": "FactSpecError",
+   "message": "cannot parse fact 'p(\"a\") extra' (expected: name(\"value\", ...))"
+  },
+  "p(\"a\");": {
+   "ok": [
+    "p",
+    [
+     "a"
+    ]
+   ]
+  },
+  "p(\"a,b\", 3)": {
+   "ok": [
+    "p",
+    [
+     "a,b",
+     3
+    ]
+   ]
+  },
+  "p(\"back\\\\slash\")": {
+   "ok": [
+    "p",
+    [
+     "back\\slash"
+    ]
+   ]
+  },
+  "p(\"say \\\"hi\\\"\")": {
+   "ok": [
+    "p",
+    [
+     "say \"hi\""
+    ]
+   ]
+  },
+  "p(\"unterminated)": {
+   "err": "FactSpecError",
+   "message": "unterminated string in fact specification"
+  },
+  "p()": {
+   "err": "FactSpecError",
+   "message": "fact 'p' needs at least one argument"
+  },
+  "p(1.5)": {
+   "err": "FactSpecError",
+   "message": "fact 'p': argument '1.5' must be a quoted string or an integer"
+  },
+  "p(true)": {
+   "err": "FactSpecError",
+   "message": "fact 'p': argument 'true' must be a quoted string or an integer"
+  },
+  "p(x)": {
+   "err": "FactSpecError",
+   "message": "fact 'p': argument 'x' must be a quoted string or an integer"
+  },
+  "right(\"get_object\", \"read\")": {
+   "ok": [
+    "right",
+    [
+     "get_object",
+     "read"
+    ]
+   ]
+  },
+  "time(1)": {
+   "err": "FactSpecError",
+   "message": "reserved predicate: time"
+  }
+ },
+ "profiles": {
+  "rank": {
+   "hardened_biscuit_anchored": {
+    "ok": 3
+   },
+   "native": {
+    "ok": 1
+   },
+   "registry_backed": {
+    "ok": 2
+   },
+   "x": {
+    "err": "ValueError",
+    "message": "unknown security profile: 'x'"
+   }
+  }
+ },
+ "scope": {
+  " a = b ": {
+   "ok": [
+    "a",
+    "b"
+   ]
+  },
+  "=b": {
+   "err": "FactSpecError",
+   "message": "cannot parse scope arg '=b' (expected: arg_name=fact_predicate)"
+  },
+  "a=": {
+   "err": "FactSpecError",
+   "message": "cannot parse scope arg 'a=' (expected: arg_name=fact_predicate)"
+  },
+  "a=B": {
+   "err": "FactSpecError",
+   "message": "invalid fact predicate 'B'"
+  },
+  "a=b(c)": {
+   "err": "FactSpecError",
+   "message": "invalid fact predicate 'b(c)'"
+  },
+  "a=b=c": {
+   "err": "FactSpecError",
+   "message": "invalid fact predicate 'b=c'"
+  },
+  "ab": {
+   "err": "FactSpecError",
+   "message": "cannot parse scope arg 'ab' (expected: arg_name=fact_predicate)"
+  },
+  "incident_id=assigned_incident": {
+   "ok": [
+    "incident_id",
+    "assigned_incident"
+   ]
+  }
+ }
+}

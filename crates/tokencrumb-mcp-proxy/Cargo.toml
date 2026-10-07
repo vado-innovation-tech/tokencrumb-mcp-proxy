@@ -1,18 +1,21 @@
 [package]
 name = "tokencrumb-mcp-proxy"
-description = "TokenCrumb - MCP Proxy — MCP authorization proxy, CLI and registry (TokenCrumb)"
+description = "MCP authorization proxy with attenuable Biscuit capabilities"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+readme = "../../README.md"
+keywords = ["mcp", "authorization", "biscuit", "proxy", "security"]
+categories = ["authentication", "command-line-utilities"]
 
 [lib]
 path = "src/lib.rs"
 
 [[bin]]
-name = "tokencrumb-mcp-proxy"
+name = "tokencrumb"
 path = "src/main.rs"
 
 [dependencies]

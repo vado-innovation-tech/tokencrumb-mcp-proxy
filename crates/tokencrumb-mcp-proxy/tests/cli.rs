@@ -15,6 +15,8 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 
 use base64::Engine as _;
+use common::{TEST_AUDIENCE, bm, keyfiles, stderr, stdout};
+use serde_json::{Value, json};
 use tokencrumb_mcp_proxy::biscuit_ops as ops;
 use tokencrumb_mcp_proxy::canonical::canonicalize;
 use tokencrumb_mcp_proxy::json::strict_json;
@@ -22,8 +24,6 @@ use tokencrumb_mcp_proxy::keys;
 use tokencrumb_mcp_proxy::policy::parse_policy;
 use tokencrumb_mcp_proxy::revocation::{RevocationList, update_revocation_list, validate_document};
 use tokencrumb_mcp_proxy::verifier::{Headers, Verifier, VerifierOptions};
-use common::{TEST_AUDIENCE, bm, keyfiles, stderr, stdout};
-use serde_json::{Value, json};
 
 fn mode(path: &Path) -> u32 {
     std::fs::metadata(path).unwrap().permissions().mode() & 0o777
@@ -69,7 +69,7 @@ fn read_file_policy() -> Value {
             "name": "read_file",
             "operation": "read",
             "resource": {"from": "arguments.path"},
-            "allow": {"resource_prefix": "/projets/acme/", "budget": 200},
+            "allow": {"resource_prefix": "/projects/acme/", "budget": 200},
         }],
     })
 }
@@ -179,7 +179,7 @@ fn forge_inspect_roundtrip() {
             "--ttl",
             "1h",
             "--resource-prefix",
-            "/projets/acme/",
+            "/projects/acme/",
             "--agent-pubkey",
             &agent.public_str,
             "--required-profile",
@@ -224,7 +224,7 @@ fn forge_inspect_roundtrip() {
         assert_eq!(rows[6], ["│", "revocation_ids", "1", "│"]);
         assert!(text.contains(" block 0 · authority "));
         assert!(text.contains("│ right(\"read_file\", \"read\");"));
-        assert!(text.contains("check if resource($r), $r.starts_with(\"/projets/acme/\");"));
+        assert!(text.contains("check if resource($r), $r.starts_with(\"/projects/acme/\");"));
     }
 
     let output = bm(dir.path(), &["inspect", "not-a-token"]);
@@ -246,7 +246,7 @@ fn attenuate_is_monotonic_appends_and_keeps_the_capability_key() {
             "--ttl",
             "1h",
             "--resource-prefix",
-            "/projets/",
+            "/projects/",
         ],
     );
     std::fs::write(dir.path().join("mandate.b64"), &token).unwrap();
@@ -259,7 +259,7 @@ fn attenuate_is_monotonic_appends_and_keeps_the_capability_key() {
             "--authority-pub",
             "authority.pub",
             "--resource",
-            "/projets/acme/",
+            "/projects/acme/",
             "--budget",
             "10",
         ],
@@ -618,14 +618,14 @@ fn revoke_child_can_be_targeted_but_from_token_revokes_the_root_family() {
             "--ttl",
             "1h",
             "--resource-prefix",
-            "/projets/acme/",
+            "/projects/acme/",
         ],
     );
     let child = ops::attenuate(
         &native,
         &authority.public_str,
         &ops::Attenuation {
-            resource: Some("/projets/acme/x/".into()),
+            resource: Some("/projects/acme/x/".into()),
             ..Default::default()
         },
     )
@@ -634,7 +634,7 @@ fn revoke_child_can_be_targeted_but_from_token_revokes_the_root_family() {
         &native,
         &authority.public_str,
         &ops::Attenuation {
-            resource: Some("/projets/acme/y/".into()),
+            resource: Some("/projects/acme/y/".into()),
             ..Default::default()
         },
     )
@@ -654,8 +654,8 @@ fn revoke_child_can_be_targeted_but_from_token_revokes_the_root_family() {
     let v = verifier(&authority.public_str, read_file_policy(), options);
     let call = |token: &str, target: &str| allowed(&v, token, "read_file", json!({"path": target}));
 
-    assert!(!call(&child, "/projets/acme/x/item"));
-    assert!(call(&sibling, "/projets/acme/y/item") && call(&native, "/projets/acme/x/item"));
+    assert!(!call(&child, "/projects/acme/x/item"));
+    assert!(call(&sibling, "/projects/acme/y/item") && call(&native, "/projects/acme/x/item"));
 
     let output = bm(
         dir.path(),
@@ -678,7 +678,7 @@ fn revoke_child_can_be_targeted_but_from_token_revokes_the_root_family() {
         ops::capability_key(&child).unwrap(),
         ops::capability_key(&native).unwrap()
     );
-    assert!(!call(&native, "/projets/acme/x/item") && !call(&sibling, "/projets/acme/y/item"));
+    assert!(!call(&native, "/projects/acme/x/item") && !call(&sibling, "/projects/acme/y/item"));
 }
 
 #[test]
@@ -1008,7 +1008,8 @@ fn registry_serve_and_registry_add_over_http() {
         "error: registry rejected: 409 {\"error\":\"key replacement requires replace_key=true\"}"
     );
 
-    let resolve = tokencrumb_mcp_proxy::registry::registry_resolver(&url, &signing.public_str, 8).unwrap();
+    let resolve =
+        tokencrumb_mcp_proxy::registry::registry_resolver(&url, &signing.public_str, 8).unwrap();
     assert_eq!(resolve("alice").as_deref(), Some(agent.public_str.as_str()));
 }
 

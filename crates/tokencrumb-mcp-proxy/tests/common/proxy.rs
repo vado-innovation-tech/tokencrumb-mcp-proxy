@@ -13,17 +13,19 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use biscuit_auth::builder::Term as BiscuitTerm;
 use biscuit_auth::{Biscuit, BiscuitBuilder, BlockBuilder};
+use bytes::Bytes;
+use chrono::{DateTime, Utc};
+use futures_util::future::BoxFuture;
+use serde_json::{Value, json};
 use tokencrumb_mcp_proxy::audit::{AuditLog, TrustedKeys};
 use tokencrumb_mcp_proxy::biscuit_ops::{self, ForgeRequest};
 use tokencrumb_mcp_proxy::keys::{Keypair, biscuit_public, generate_keypair};
 use tokencrumb_mcp_proxy::policy::{Policy, parse_policy};
 use tokencrumb_mcp_proxy::proxy::app::{ProxyConfig, create_app};
-use tokencrumb_mcp_proxy::proxy::upstream::{ForwardHeaders, SharedUpstream, Upstream, UpstreamResponse};
+use tokencrumb_mcp_proxy::proxy::upstream::{
+    ForwardHeaders, SharedUpstream, Upstream, UpstreamResponse,
+};
 use tokencrumb_mcp_proxy::verifier::{Decision, Headers, Verifier, VerifierOptions};
-use bytes::Bytes;
-use chrono::{DateTime, Utc};
-use futures_util::future::BoxFuture;
-use serde_json::{Value, json};
 use tower::ServiceExt;
 
 pub const TEST_AUDIENCE: &str = "test-gw";
@@ -139,7 +141,7 @@ pub fn test_policy() -> Policy {
         "min_profile": "native",
         "tools": [
             {"name": "read_file", "operation": "read", "resource": {"from": "arguments.path"},
-             "allow": {"resource_prefix": "/projets/acme/", "budget": 200}},
+             "allow": {"resource_prefix": "/projects/acme/", "budget": 200}},
             {"name": "execute_sql", "operation": "write", "resource": {"from": "arguments.schema"},
              "allow": {"resource_prefix": "analytics", "budget": 20},
              "require": ["call_signature_valid", "nonce_fresh", "arguments_bound"]},
@@ -183,7 +185,7 @@ impl World {
                 operation: "read".into(),
                 ttl_seconds: 3600,
                 budget: 200,
-                resource_prefix: Some("/projets/acme/".into()),
+                resource_prefix: Some("/projects/acme/".into()),
                 required_profile: "native".into(),
                 audience: TEST_AUDIENCE.into(),
                 ..Default::default()

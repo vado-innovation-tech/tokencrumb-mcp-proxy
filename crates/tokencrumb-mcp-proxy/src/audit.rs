@@ -421,18 +421,18 @@ impl AuditLog {
         if encoded.len() as u64 > self.max_bytes {
             return Err(Error::value("audit entry exceeds segment limit"));
         }
-        if let Ok(meta) = std::fs::metadata(&self.path) {
-            if meta.len() + encoded.len() as u64 > self.max_bytes {
-                let archives = segments(&self.path).len() - 1;
-                if archives >= self.max_segments - 1 {
-                    return Err(Error::io(
-                        "audit storage quota reached; archive/export required",
-                    ));
-                }
-                let mut archived = self.path.as_os_str().to_owned();
-                archived.push(format!(".part{archives:08}"));
-                std::fs::rename(&self.path, archived)?;
+        if let Ok(meta) = std::fs::metadata(&self.path)
+            && meta.len() + encoded.len() as u64 > self.max_bytes
+        {
+            let archives = segments(&self.path).len() - 1;
+            if archives >= self.max_segments - 1 {
+                return Err(Error::io(
+                    "audit storage quota reached; archive/export required",
+                ));
             }
+            let mut archived = self.path.as_os_str().to_owned();
+            archived.push(format!(".part{archives:08}"));
+            std::fs::rename(&self.path, archived)?;
         }
         let mut file = OpenOptions::new()
             .append(true)
@@ -488,10 +488,10 @@ pub fn head_attestation(
         .cloned()
         .unwrap_or(json!({}));
     let actual = entry.get("gateway_id").and_then(Value::as_str);
-    if let (Some(wanted), Some(actual)) = (gateway_id, actual) {
-        if wanted != actual {
-            return Err(Error::value("audit gateway identity mismatch"));
-        }
+    if let (Some(wanted), Some(actual)) = (gateway_id, actual)
+        && wanted != actual
+    {
+        return Err(Error::value("audit gateway identity mismatch"));
     }
     let gateway = actual.or(gateway_id).unwrap_or("gateway");
     let mut attestation = Map::new();

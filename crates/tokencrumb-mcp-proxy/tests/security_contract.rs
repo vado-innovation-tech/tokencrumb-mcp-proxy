@@ -6,6 +6,12 @@ mod common;
 
 use std::sync::{Arc, Mutex};
 
+use chrono::{TimeDelta, Utc};
+use common::proxy::{
+    TEST_AUDIENCE, World, append_block, bearer, biscuit_headers, build_token, date_term, forge,
+    in_seconds, mandate, options, str_term, test_policy, verify,
+};
+use serde_json::{Value, json};
 use tokencrumb_mcp_proxy::ErrorKind;
 use tokencrumb_mcp_proxy::attestation::build_attestation;
 use tokencrumb_mcp_proxy::biscuit_ops::{self, Attenuation, ForgeRequest, attenuate};
@@ -20,12 +26,6 @@ use tokencrumb_mcp_proxy::revocation::{
 };
 use tokencrumb_mcp_proxy::token_contract::Term;
 use tokencrumb_mcp_proxy::verifier::{Decision, Headers, Verifier};
-use chrono::{TimeDelta, Utc};
-use common::proxy::{
-    TEST_AUDIENCE, World, append_block, bearer, biscuit_headers, build_token, date_term, forge,
-    in_seconds, mandate, options, str_term, test_policy, verify,
-};
-use serde_json::{Value, json};
 
 fn raw(w: &World, declaration: &str, checks: &str) -> String {
     build_token(
@@ -51,13 +51,13 @@ fn read(v: &Verifier, token: &str, path: Value) -> Decision {
 }
 
 fn x() -> Value {
-    json!("/projets/acme/x")
+    json!("/projects/acme/x")
 }
 
 #[test]
 fn issuer_cannot_supply_context_or_ambiguous_metadata() {
     for declaration in [
-        r#"resource("/projets/acme/x");"#,
+        r#"resource("/projects/acme/x");"#,
         "budget(1000);",
         r#"upstream("catalog");"#,
         r#"arg("tenant", "trusted");"#,
@@ -385,10 +385,10 @@ fn noncanonical_resources_are_not_authorized_then_forwarded_differently() {
     let w = World::new();
     let token = w.native_token();
     for resource in [
-        json!("/projets/%61cme/x"),
-        json!("/projets/acme/./x"),
+        json!("/projects/%61cme/x"),
+        json!("/projects/acme/./x"),
         json!(123),
-        json!({"path": "/projets/acme/x"}),
+        json!({"path": "/projects/acme/x"}),
     ] {
         let v = w.verifier(test_policy(), None);
         assert!(read(&v, &token, x()).allow);
@@ -520,7 +520,7 @@ fn registry_profile_refusal_is_distinct_from_a_bad_token() {
             ..mandate("registered", "read_file", "read", 60, 3)
         },
     );
-    let args = json!({"path": "/projets/acme/x"});
+    let args = json!({"path": "/projects/acme/x"});
     let header = build_attestation(
         "registered",
         "read_file",

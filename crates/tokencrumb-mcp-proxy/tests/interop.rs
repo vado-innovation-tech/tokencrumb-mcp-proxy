@@ -10,6 +10,8 @@ mod common;
 
 use std::path::Path;
 
+use common::{bm, stderr, stdout};
+use serde_json::{Value, json};
 use tokencrumb_mcp_proxy::audit::{
     AuditLog, Record, TrustedKeys, trusted_from, verify_head_attestation, verify_log,
 };
@@ -20,8 +22,6 @@ use tokencrumb_mcp_proxy::policy::parse_policy;
 use tokencrumb_mcp_proxy::registry::Store;
 use tokencrumb_mcp_proxy::revocation::validate_document;
 use tokencrumb_mcp_proxy::verifier::{Headers, Verifier, VerifierOptions};
-use common::{bm, stderr, stdout};
-use serde_json::{Value, json};
 
 const AUDIENCE: &str = "interop-gw";
 
@@ -115,13 +115,13 @@ fn python_mandates_are_inspected_verified_and_attenuated_by_rust() {
     assert!(hardened.contains(&read(dir.path(), "agent.pub")));
 
     let v = verifier(&authority_pub);
-    assert!(allowed(&v, &mandate, "/projets/acme/a.txt", "INC-1"));
-    assert!(!allowed(&v, &mandate, "/projets/acme/a.txt", "INC-2"));
+    assert!(allowed(&v, &mandate, "/projects/acme/a.txt", "INC-1"));
+    assert!(!allowed(&v, &mandate, "/projects/acme/a.txt", "INC-2"));
     assert!(!allowed(&v, &mandate, "/etc/passwd", "INC-1"));
     // Python's own attenuation narrows as signed.
     assert_eq!(ops::min_budget_cap(&narrowed).unwrap(), Some(5));
-    assert!(!allowed(&v, &narrowed, "/projets/acme/a.txt", "INC-1"));
-    assert!(allowed(&v, &narrowed, "/projets/acme/docs/a.txt", "INC-1"));
+    assert!(!allowed(&v, &narrowed, "/projects/acme/a.txt", "INC-1"));
+    assert!(allowed(&v, &narrowed, "/projects/acme/docs/a.txt", "INC-1"));
 
     // Rust attenuates a Python mandate; the result narrows and keeps its family id.
     let output = bm(
@@ -133,7 +133,7 @@ fn python_mandates_are_inspected_verified_and_attenuated_by_rust() {
             "--authority-pub",
             "authority.pub",
             "--resource",
-            "/projets/acme/x/",
+            "/projects/acme/x/",
         ],
     );
     assert!(output.status.success(), "{}", stderr(&output));
@@ -142,8 +142,8 @@ fn python_mandates_are_inspected_verified_and_attenuated_by_rust() {
         ops::capability_key(&ours).unwrap(),
         ops::capability_key(&mandate).unwrap()
     );
-    assert!(!allowed(&v, &ours, "/projets/acme/a.txt", "INC-1"));
-    assert!(allowed(&v, &ours, "/projets/acme/x/a.txt", "INC-1"));
+    assert!(!allowed(&v, &ours, "/projects/acme/a.txt", "INC-1"));
+    assert!(allowed(&v, &ours, "/projects/acme/x/a.txt", "INC-1"));
 }
 
 #[test]

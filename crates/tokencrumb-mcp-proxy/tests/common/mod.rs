@@ -42,9 +42,14 @@ pub fn stderr(output: &Output) -> String {
 /// A fresh keypair written as `<dir>/<name>.key` / `.pub` (plaintext private key).
 pub fn keyfiles(dir: &Path, name: &str) -> tokencrumb_mcp_proxy::keys::Keypair {
     let kp = tokencrumb_mcp_proxy::keys::generate_keypair();
-    tokencrumb_mcp_proxy::keys::save_private_key(dir.join(format!("{name}.key")), &kp.private_str, None)
+    tokencrumb_mcp_proxy::keys::save_private_key(
+        dir.join(format!("{name}.key")),
+        &kp.private_str,
+        None,
+    )
+    .unwrap();
+    tokencrumb_mcp_proxy::keys::save_public_key(dir.join(format!("{name}.pub")), &kp.public_str)
         .unwrap();
-    tokencrumb_mcp_proxy::keys::save_public_key(dir.join(format!("{name}.pub")), &kp.public_str).unwrap();
     kp
 }
 

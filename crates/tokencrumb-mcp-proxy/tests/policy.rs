@@ -2,9 +2,9 @@
 //!
 //! Ported from `tests/test_policy.py`.
 
+use serde_json::json;
 use tokencrumb_mcp_proxy::ErrorKind;
 use tokencrumb_mcp_proxy::policy::{extract_resource, parse_policy};
-use serde_json::json;
 
 #[test]
 fn parse_and_canonicalize_prefix() {
@@ -16,7 +16,7 @@ fn parse_and_canonicalize_prefix() {
             "name": "read_file",
             "operation": "read",
             "resource": {"from": "arguments.path"},
-            "allow": {"resource_prefix": "/projets/acme/", "budget": 200},
+            "allow": {"resource_prefix": "/projects/acme/", "budget": 200},
             "require": ["call_signature_valid"],
         }],
     }))
@@ -26,7 +26,7 @@ fn parse_and_canonicalize_prefix() {
     assert_eq!(pol.min_profile, "hardened_biscuit_anchored");
     let tp = pol.tool("read_file").unwrap();
     assert_eq!(tp.operation, "read");
-    assert_eq!(tp.resource_prefix.as_deref(), Some("/projets/acme/"));
+    assert_eq!(tp.resource_prefix.as_deref(), Some("/projects/acme/"));
     assert_eq!(tp.budget, Some(200));
     assert_eq!(tp.require, vec!["call_signature_valid"]);
 }

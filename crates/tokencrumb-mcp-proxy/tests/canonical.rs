@@ -2,12 +2,12 @@
 //!
 //! Ported from `tests/test_canonical.py`.
 
+use serde_json::json;
 use tokencrumb_mcp_proxy::ErrorKind;
 use tokencrumb_mcp_proxy::canonical::{
     arguments_hash, canonicalize, canonicalize_prefix, canonicalize_resource,
 };
 use tokencrumb_mcp_proxy::json::strict_json;
-use serde_json::json;
 
 #[test]
 fn jcs_key_order_independent() {
@@ -66,8 +66,8 @@ fn nan_infinity_rejected() {
 #[test]
 fn resource_percent_decoding() {
     assert_eq!(
-        canonicalize_resource("/projets/%61cme/x").unwrap(),
-        "/projets/acme/x"
+        canonicalize_resource("/projects/%61cme/x").unwrap(),
+        "/projects/acme/x"
     );
 }
 
@@ -75,11 +75,11 @@ fn resource_percent_decoding() {
 #[test]
 fn resource_traversal_normalized_then_out_of_scope() {
     assert_eq!(
-        canonicalize_resource("/projets/acme/../globex/x").unwrap(),
-        "/projets/globex/x"
+        canonicalize_resource("/projects/acme/../globex/x").unwrap(),
+        "/projects/globex/x"
     );
     assert_eq!(
-        canonicalize_resource("/projets/%2e%2e/etc/passwd").unwrap(),
+        canonicalize_resource("/projects/%2e%2e/etc/passwd").unwrap(),
         "/etc/passwd"
     );
 }
@@ -92,22 +92,22 @@ fn relative_traversal_rejected() {
 
 #[test]
 fn null_byte_rejected() {
-    let err = canonicalize_resource("/projets/acme/\u{0}evil").unwrap_err();
+    let err = canonicalize_resource("/projects/acme/\u{0}evil").unwrap_err();
     assert_eq!(err.kind, ErrorKind::Resource);
 }
 
-/// Boundary safety: `/projets/acme/` must not match `/projets/acme2`.
+/// Boundary safety: `/projects/acme/` must not match `/projects/acme2`.
 #[test]
 fn prefix_keeps_trailing_slash_boundary() {
-    let prefix = canonicalize_prefix("/projets/acme/").unwrap();
-    assert_eq!(prefix, "/projets/acme/");
+    let prefix = canonicalize_prefix("/projects/acme/").unwrap();
+    assert_eq!(prefix, "/projects/acme/");
     assert!(
-        !canonicalize_resource("/projets/acme2/x")
+        !canonicalize_resource("/projects/acme2/x")
             .unwrap()
             .starts_with(&prefix)
     );
     assert!(
-        canonicalize_resource("/projets/acme/x")
+        canonicalize_resource("/projects/acme/x")
             .unwrap()
             .starts_with(&prefix)
     );

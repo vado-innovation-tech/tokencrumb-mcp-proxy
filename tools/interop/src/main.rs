@@ -8,11 +8,11 @@
 
 use std::process::ExitCode;
 
+use serde_json::{Value, json};
 use tokencrumb_mcp_proxy::attestation::build_attestation;
 use tokencrumb_mcp_proxy::json::strict_json;
 use tokencrumb_mcp_proxy::policy::parse_policy;
 use tokencrumb_mcp_proxy::verifier::{Decision, Headers, Verifier, VerifierOptions};
-use serde_json::{Value, json};
 
 fn check(path: &str) -> Result<(), String> {
     let fixture =

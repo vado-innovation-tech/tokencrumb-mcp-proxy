@@ -7,11 +7,11 @@ mod common;
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use common::{golden, key, t0};
+use serde_json::{Value, json};
 use tokencrumb_mcp_proxy::policy::parse_policy;
 use tokencrumb_mcp_proxy::revocation::StaticRevocations;
 use tokencrumb_mcp_proxy::verifier::{Decision, Headers, Verifier, VerifierOptions};
-use common::{golden, key, t0};
-use serde_json::{Value, json};
 
 fn render(d: &Decision) -> Value {
     json!({

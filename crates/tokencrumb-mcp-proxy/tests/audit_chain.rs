@@ -14,6 +14,8 @@ mod common;
 use std::path::{Path, PathBuf};
 
 use base64::Engine as _;
+use common::{bm, stderr, stdout};
+use serde_json::{Value, json};
 use tokencrumb_mcp_proxy::audit::{
     AuditLog, GENESIS, Record, TrustedKeys, head_attestation, trusted_from,
     verify_head_attestation, verify_log,
@@ -21,8 +23,6 @@ use tokencrumb_mcp_proxy::audit::{
 use tokencrumb_mcp_proxy::canonical::{canonicalize, sha256_hex};
 use tokencrumb_mcp_proxy::json::{dumps, strict_json};
 use tokencrumb_mcp_proxy::keys::{self, Keypair, generate_keypair};
-use common::{bm, stderr, stdout};
-use serde_json::{Value, json};
 
 fn trusted(public: &str) -> TrustedKeys {
     trusted_from(&[public.to_owned()]).unwrap()
@@ -189,7 +189,7 @@ fn legacy_entries_without_new_fields_stay_verifiable() {
         "ts": "2026-07-01T10:00:00Z",
         "agent_id": "agent-1",
         "tool": "read_file",
-        "resource": "/projets/acme/a.txt",
+        "resource": "/projects/acme/a.txt",
         "decision": "ALLOW",
         "reason": null,
         "arguments_hash": "deadbeef",
@@ -381,7 +381,8 @@ fn cli_audit_head_prints_a_sorted_verifiable_attestation() {
     // json.dumps(indent=2, sort_keys=True), byte for byte.
     assert_eq!(
         text,
-        tokencrumb_mcp_proxy::json::dumps_indent(&tokencrumb_mcp_proxy::json::sort_keys(&att), 2) + "\n"
+        tokencrumb_mcp_proxy::json::dumps_indent(&tokencrumb_mcp_proxy::json::sort_keys(&att), 2)
+            + "\n"
     );
     let keys_in_order: Vec<&str> = text
         .lines()

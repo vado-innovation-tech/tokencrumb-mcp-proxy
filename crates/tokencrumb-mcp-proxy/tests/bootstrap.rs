@@ -5,11 +5,11 @@
 
 mod common;
 
+use common::{TEST_AUDIENCE, bm, stderr};
+use serde_json::json;
 use tokencrumb_mcp_proxy::biscuit_ops::{self as ops, ForgeRequest};
 use tokencrumb_mcp_proxy::bootstrap::{accept_exchange, validate_issuer_url};
 use tokencrumb_mcp_proxy::keys::{biscuit_keypair, generate_keypair};
-use common::{TEST_AUDIENCE, bm, stderr};
-use serde_json::json;
 
 fn mandate(private: &str) -> String {
     ops::forge(
@@ -18,7 +18,7 @@ fn mandate(private: &str) -> String {
             agent_id: "agent-1".into(),
             tool: "read_file".into(),
             ttl_seconds: 3600,
-            resource_prefix: Some("/projets/acme/".into()),
+            resource_prefix: Some("/projects/acme/".into()),
             audience: TEST_AUDIENCE.into(),
             ..Default::default()
         },

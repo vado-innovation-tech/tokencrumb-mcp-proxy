@@ -217,8 +217,8 @@ pub fn canonicalize_arg(raw: &Value) -> Result<String> {
 }
 
 /// Canonical resource *prefix* — same rules as a resource but the trailing `/` is
-/// preserved so `starts_with` cannot cross a directory boundary (`/projets/acme/` must
-/// not match `/projets/acme2`).
+/// preserved so `starts_with` cannot cross a directory boundary (`/projects/acme/` must
+/// not match `/projects/acme2`).
 pub fn canonicalize_prefix(raw: &str) -> Result<String> {
     let mut canon = canonicalize_resource(raw)?;
     if canon.contains('/') && !canon.ends_with('/') {

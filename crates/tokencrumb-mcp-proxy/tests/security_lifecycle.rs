@@ -15,6 +15,14 @@ use std::time::Duration;
 
 use axum::http::StatusCode;
 use base64::Engine as _;
+use bytes::Bytes;
+use chrono::{DateTime, Utc};
+use common::proxy::{
+    Canned, FakeUpstream, RecordingServer, TEST_AUDIENCE, World, bearer, biscuit_headers,
+    build_token, date_term, forge, in_seconds, mandate, options, post, str_term, test_policy,
+    verify,
+};
+use serde_json::{Value, json};
 use tokencrumb_mcp_proxy::ErrorKind;
 use tokencrumb_mcp_proxy::audit::{AuditLog, Record, TrustedKeys, trusted_from, verify_log};
 use tokencrumb_mcp_proxy::biscuit_ops::{Attenuation, attenuate, capability_key, inspect};
@@ -30,14 +38,6 @@ use tokencrumb_mcp_proxy::revocation::{
     RevocationList, migrate_legacy_list, update_revocation_list, validate_document,
 };
 use tokencrumb_mcp_proxy::verifier::{Decision, Headers, Verifier};
-use bytes::Bytes;
-use chrono::{DateTime, Utc};
-use common::proxy::{
-    Canned, FakeUpstream, RecordingServer, TEST_AUDIENCE, World, bearer, biscuit_headers,
-    build_token, date_term, forge, in_seconds, mandate, options, post, str_term, test_policy,
-    verify,
-};
-use serde_json::{Value, json};
 
 #[test]
 fn nonce_is_once_across_workers_and_restart() {
@@ -136,7 +136,7 @@ fn only_explicit_authority_epochs_are_trusted() {
         verify(
             v,
             "read_file",
-            json!({"path": "/projets/acme/x"}),
+            json!({"path": "/projects/acme/x"}),
             &biscuit_headers(&token, None),
         )
         .allow
@@ -296,7 +296,7 @@ async fn verified_user_credentials_remain_separate_and_out_of_scope_never_dispat
         let token = bearer(&user_token(&w, user, rights));
         let reply = post(
             &app,
-            read_call("/projets/acme/x"),
+            read_call("/projects/acme/x"),
             &[
                 ("authorization", &token),
                 ("x-user", "alice"),
@@ -577,8 +577,8 @@ fn revoke_child_can_be_targeted_but_from_token_revokes_the_root_family() {
         )
         .unwrap()
     };
-    let child = narrow("/projets/acme/x/");
-    let sibling = narrow("/projets/acme/y/");
+    let child = narrow("/projects/acme/x/");
+    let sibling = narrow("/projects/acme/y/");
     let path = w.dir.path().join("revoked");
     let child_id = inspect(&child)
         .unwrap()
@@ -601,8 +601,8 @@ fn revoke_child_can_be_targeted_but_from_token_revokes_the_root_family() {
         )
         .allow
     };
-    assert!(!call(&child, "/projets/acme/x/item"));
-    assert!(call(&sibling, "/projets/acme/y/item") && call(&native, "/projets/acme/x/item"));
+    assert!(!call(&child, "/projects/acme/x/item"));
+    assert!(call(&sibling, "/projects/acme/y/item") && call(&native, "/projects/acme/x/item"));
 
     assert_eq!(
         capability_key(&child).unwrap(),
@@ -614,7 +614,7 @@ fn revoke_child_can_be_targeted_but_from_token_revokes_the_root_family() {
         &[capability_key(&child).unwrap()],
     )
     .unwrap();
-    assert!(!call(&native, "/projets/acme/x/item") && !call(&sibling, "/projets/acme/y/item"));
+    assert!(!call(&native, "/projects/acme/x/item") && !call(&sibling, "/projects/acme/y/item"));
 }
 
 #[tokio::test]

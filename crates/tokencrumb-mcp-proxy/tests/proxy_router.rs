@@ -7,9 +7,9 @@ mod common;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use tokencrumb_mcp_proxy::proxy::messages::{INVALID_REQUEST, METHOD_NOT_FOUND};
 use common::proxy::{FakeUpstream, World, bearer, post, send};
 use serde_json::{Value, json};
+use tokencrumb_mcp_proxy::proxy::messages::{INVALID_REQUEST, METHOD_NOT_FOUND};
 
 fn call() -> Value {
     json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
@@ -394,7 +394,7 @@ async fn allowed_call_is_forwarded_with_its_audit_identity() {
     let app = w.proxy(upstream.clone(), None);
     let token = w.native_token();
     let payload = json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-                         "params": {"name": "read_file", "arguments": {"path": "/projets/acme/q3.md"}}});
+                         "params": {"name": "read_file", "arguments": {"path": "/projects/acme/q3.md"}}});
     let reply = post(&app, payload, &[("authorization", &bearer(&token))]).await;
     assert_eq!(reply.status, StatusCode::OK);
     assert_eq!(reply.json()["result"], json!({"ok": true}));
@@ -402,7 +402,7 @@ async fn allowed_call_is_forwarded_with_its_audit_identity() {
     let entry = &w.audit_entries()[0];
     assert_eq!(entry["decision"], json!("ALLOW"));
     assert_eq!(entry["reason"], Value::Null);
-    assert_eq!(entry["resource"], json!("/projets/acme/q3.md"));
+    assert_eq!(entry["resource"], json!("/projects/acme/q3.md"));
     assert_eq!(entry["remaining_budget"], json!(199));
     assert_eq!(
         entry["identity"]["mandate_id"],

@@ -1,0 +1,25 @@
+title = "TokenCrumb secret scanning"
+
+[allowlist]
+description = "Local build output, never part of a source checkout"
+paths = ['''(^|/)target/''']
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+[[rules.allowlists]]
+description = "Public key and nonce digest fields in fixed independent reference fixtures"
+condition = "AND"
+paths = ['''(^|/)crates/tokencrumb-mcp-proxy/tests/golden/(attestations|decisions)\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"(agent_key|nonce_key)": "(ed25519/)?[a-f0-9]{64}",?\s*$''']
+
+[[rules.allowlists]]
+description = "Synthetic signed attestation used to test the legacy header alias"
+condition = "AND"
+paths = ['''(^|/)crates/tokencrumb-mcp-proxy/tests/golden/decisions\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"aip-token": "[A-Za-z0-9_=-]+",?\s*$''']

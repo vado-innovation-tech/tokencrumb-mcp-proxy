@@ -154,13 +154,14 @@ impl Store {
                 string_value(owner, "owner_ref", 256)?;
             }
         }
-        if let Some(old) = &old {
-            if old.get("agent_pubkey") != merged.get("agent_pubkey") && !replace_key {
-                return Err(Error::new(
-                    ErrorKind::Exists,
-                    "agent already registered with a different public key",
-                ));
-            }
+        if let Some(old) = &old
+            && old.get("agent_pubkey") != merged.get("agent_pubkey")
+            && !replace_key
+        {
+            return Err(Error::new(
+                ErrorKind::Exists,
+                "agent already registered with a different public key",
+            ));
         }
         if old.is_none() && data.len() >= CAPACITY {
             return Err(Error::value("registry capacity reached"));
@@ -397,10 +398,10 @@ pub fn registry_resolver_with_agent(
                 .map_err(|_| Error::runtime("registry cache poisoned"))?;
             let now = now_seconds();
             let previous = cache.entries.get(agent_id).map(|(r, _)| r.clone());
-            if let Some((key, expires, _)) = &previous {
-                if *expires as f64 > now {
-                    return Ok(key.clone());
-                }
+            if let Some((key, expires, _)) = &previous
+                && *expires as f64 > now
+            {
+                return Ok(key.clone());
             }
             let target = format!(
                 "{base}/agents/{}",
@@ -408,10 +409,10 @@ pub fn registry_resolver_with_agent(
             );
             let body = fetch(&agent, &target)?;
             let record = verify_record(&strict_json(body)?, agent_id, &public, Some(now))?;
-            if let Some((_, _, previous_seq)) = previous {
-                if record.2 < previous_seq {
-                    return Err(Error::value("registry rollback"));
-                }
+            if let Some((_, _, previous_seq)) = previous
+                && record.2 < previous_seq
+            {
+                return Err(Error::value("registry rollback"));
             }
             let key = record.0.clone();
             cache.insert(agent_id, record);

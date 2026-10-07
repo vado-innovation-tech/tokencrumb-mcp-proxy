@@ -1,0 +1,50 @@
+{
+ "attenuate_depth0": {
+  "err": "ValueError",
+  "message": "max_delegation_depth: expected integer in [1, 9007199254740991]"
+ },
+ "attenuate_nothing": {
+  "err": "ValueError",
+  "message": "attenuate needs at least one of: resource, budget, ttl, upstream, max-depth"
+ },
+ "attenuate_wrong_key": {
+  "err": "BiscuitValidationError",
+  "message": "error deserializing or verifying the token"
+ },
+ "bad_agent": {
+  "err": "ValueError",
+  "message": "agent_id: expected a nonempty string without surrounding whitespace"
+ },
+ "bad_prefix": {
+  "err": "ResourceError",
+  "message": "path traversal rejected: '../x'"
+ },
+ "bad_profile": {
+  "err": "ValueError",
+  "message": "unknown security profile: 'gold'"
+ },
+ "bad_pub": {
+  "err": "ValueError",
+  "message": "agent_pubkey: expected ed25519/<64 hex digits>"
+ },
+ "bad_scope": {
+  "err": "FactSpecError",
+  "message": "invalid fact predicate 'B'"
+ },
+ "neg_budget": {
+  "err": "ValueError",
+  "message": "budget: expected integer in [0, 9007199254740991]"
+ },
+ "no_audience": {
+  "err": "ValueError",
+  "message": "forge requires an audience: the deployment this mandate is for"
+ },
+ "reserved_fact": {
+  "err": "FactSpecError",
+  "message": "reserved predicate: audience"
+ },
+ "ttl0": {
+  "err": "ValueError",
+  "message": "ttl_seconds: expected integer in [1, 9007199254740991]"
+ }
+}

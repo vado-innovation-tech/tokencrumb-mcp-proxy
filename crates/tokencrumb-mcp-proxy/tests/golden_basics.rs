@@ -3,14 +3,14 @@
 
 mod common;
 
+use common::{assert_outcome, golden};
+use serde_json::{Value, json};
 use tokencrumb_mcp_proxy::biscuit_ops::{FactArg, parse_fact_spec, parse_scope_arg};
 use tokencrumb_mcp_proxy::canonical::{
     arguments_hash, canonicalize_arg, canonicalize_prefix, canonicalize_resource,
 };
 use tokencrumb_mcp_proxy::duration::parse_duration;
 use tokencrumb_mcp_proxy::json::{canonicalize, strict_json};
-use common::{assert_outcome, golden};
-use serde_json::{Value, json};
 
 #[test]
 fn resources_prefixes_and_args() {

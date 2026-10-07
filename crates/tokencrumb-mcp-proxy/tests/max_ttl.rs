@@ -1,4 +1,4 @@
-//! Signed expiry and maximum remaining lifetime (ADR-0009).
+//! Signed expiry and maximum remaining lifetime (architecture decision 6).
 //!
 //! Ported from `tests/test_max_ttl.py`.
 
@@ -6,18 +6,18 @@ mod common;
 
 use std::sync::Arc;
 
-use tokencrumb_mcp_proxy::biscuit_ops::{Attenuation, ForgeRequest, attenuate, capability_key};
-use tokencrumb_mcp_proxy::budget::BudgetStore;
-use tokencrumb_mcp_proxy::policy::{Policy, parse_policy};
-use tokencrumb_mcp_proxy::verifier::{Decision, Verifier};
 use common::proxy::{
     TEST_AUDIENCE, World, biscuit_headers, build_token, date_term, forge, in_seconds, mandate,
     options, str_term, verify,
 };
 use serde_json::{Value, json};
+use tokencrumb_mcp_proxy::biscuit_ops::{Attenuation, ForgeRequest, attenuate, capability_key};
+use tokencrumb_mcp_proxy::budget::BudgetStore;
+use tokencrumb_mcp_proxy::policy::{Policy, parse_policy};
+use tokencrumb_mcp_proxy::verifier::{Decision, Verifier};
 
 fn args() -> Value {
-    json!({"path": "/projets/acme/rapport.md"})
+    json!({"path": "/projects/acme/rapport.md"})
 }
 
 fn policy(max_ttl: Option<Value>, budget: i64) -> Policy {
@@ -27,7 +27,7 @@ fn policy(max_ttl: Option<Value>, budget: i64) -> Policy {
             "name": "read_file",
             "operation": "read",
             "resource": {"from": "arguments.path"},
-            "allow": {"resource_prefix": "/projets/acme/", "budget": budget},
+            "allow": {"resource_prefix": "/projects/acme/", "budget": budget},
         }],
     });
     if let Some(ttl) = max_ttl {
@@ -48,7 +48,7 @@ fn token(w: &World, ttl_seconds: i128) -> String {
     forge(
         &w.authority.private_str,
         ForgeRequest {
-            resource_prefix: Some("/projets/acme/".into()),
+            resource_prefix: Some("/projects/acme/".into()),
             ..mandate("agent-1", "read_file", "read", ttl_seconds, 200)
         },
     )
@@ -60,7 +60,7 @@ fn timeless_token(w: &World) -> String {
         &w.authority.private_str,
         r#"agent_id("agent-1"); required_profile("native"); audience({aud});
            right("read_file", "read"); budget_cap(200);
-           check if resource($r), $r.starts_with("/projets/acme/");"#,
+           check if resource($r), $r.starts_with("/projects/acme/");"#,
         &[("aud", str_term(TEST_AUDIENCE))],
     )
 }

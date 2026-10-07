@@ -1,6 +1,6 @@
 //! Per-capability call budgets, tracked LOCALLY at the proxy (never in the token).
 //!
-//! Two counters per mandate (ADR-0008): a **global** one, and one **per tool**. A call
+//! Two counters per mandate (architecture decision 5): a **global** one, and one **per tool**. A call
 //! is refused as soon as either is exhausted. Both are keyed off the authority block's
 //! revocation id (stable across attenuations of the same forged capability); the
 //! per-tool counter appends the tool name to that key.
@@ -241,7 +241,7 @@ impl BudgetTx<'_> {
     /// Increment every given counter, flushing once.
     ///
     /// A call is charged to more than one counter — the mandate's global budget and
-    /// its per-tool budget (ADR-0008) — and those must move together: a partial write
+    /// its per-tool budget (architecture decision 5) — and those must move together: a partial write
     /// would let a restart resurrect spent budget on one level only.
     pub fn consume(&mut self, keys: &[&str], expires_at: Option<i128>) -> Result<()> {
         if keys.is_empty() {

@@ -157,10 +157,10 @@ fn serde_error(error: serde_json::Error) -> Error {
     if message.starts_with("recursion limit exceeded") {
         return Error::value("JSON nesting limit exceeded");
     }
-    if error.classify() == serde_json::error::Category::Data {
-        if let Some(position) = message.rfind(" at line ") {
-            return Error::value(&message[..position]);
-        }
+    if error.classify() == serde_json::error::Category::Data
+        && let Some(position) = message.rfind(" at line ")
+    {
+        return Error::value(&message[..position]);
     }
     Error::value(message)
 }

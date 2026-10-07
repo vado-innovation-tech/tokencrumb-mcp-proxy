@@ -3,11 +3,11 @@
 
 mod common;
 
+use common::{golden, key, t0};
+use serde_json::{Value, json};
 use tokencrumb_mcp_proxy::attestation::{Expected, build_attestation, verify_attestation};
 use tokencrumb_mcp_proxy::canonical::arguments_hash;
 use tokencrumb_mcp_proxy::nonce_cache::NonceCache;
-use common::{golden, key, t0};
-use serde_json::{Value, json};
 
 /// Reasons built on Python library messages (base64, json, KeyError) only keep their
 /// fixed prefix: the wording after it belonged to the old runtime, not to the contract.

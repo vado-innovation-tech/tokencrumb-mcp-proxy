@@ -1,9 +1,9 @@
 //! The TokenCrumb - MCP Proxy proxy application (Streamable HTTP).
 //!
-//! One process, one endpoint per upstream (ADR-0006): `/mcp` for a single unnamed
+//! One process, one endpoint per upstream (architecture decision 3): `/mcp` for a single unnamed
 //! upstream, `/mcp/<name>` for each entry of `upstreams:` in `policy.yaml`. The client
 //! keeps one entry per server in its own config, exactly as it would without the proxy
-//! (ADR-0005), and sessions, `initialize` capabilities and catalogs stay 1:1 — nothing is
+//! (architecture decision 3), and sessions, `initialize` capabilities and catalogs stay 1:1 — nothing is
 //! multiplexed. What IS shared is the budget counters and the single signed audit chain,
 //! which is the whole point of running one process.
 //!
@@ -59,7 +59,7 @@ const SESSION_TTL: Duration = Duration::from_secs(3600);
 
 pub struct ProxyConfig {
     pub verifier: Arc<Verifier>,
-    /// One entry per endpoint (ADR-0006), in declaration order. `None` is the single
+    /// One entry per endpoint (architecture decision 3), in declaration order. `None` is the single
     /// unnamed upstream served at `/mcp`; a name is served at `/mcp/<name>`.
     pub upstreams: Vec<(Option<String>, SharedUpstream)>,
     pub audit: Option<Arc<AuditLog>>,
@@ -499,17 +499,18 @@ async fn handle_inner(
     }
 
     let headers = Headers::from_http(request.headers());
-    if let Some(origin) = headers.get("origin") {
-        if !state.config.allowed_origins.iter().any(|o| o == origin) {
-            ctx.deny("<origin>", "untrusted browser origin", None, None)
-                .await?;
-            return Ok(empty(StatusCode::FORBIDDEN));
-        }
+    if let Some(origin) = headers.get("origin")
+        && !state.config.allowed_origins.iter().any(|o| o == origin)
+    {
+        ctx.deny("<origin>", "untrusted browser origin", None, None)
+            .await?;
+        return Ok(empty(StatusCode::FORBIDDEN));
     }
-    if let Some(version) = headers.get("mcp-protocol-version") {
-        if !version.is_empty() && version != policy.mcp.spec_version {
-            return Ok(empty(StatusCode::BAD_REQUEST));
-        }
+    if let Some(version) = headers.get("mcp-protocol-version")
+        && !version.is_empty()
+        && version != policy.mcp.spec_version
+    {
+        return Ok(empty(StatusCode::BAD_REQUEST));
     }
 
     let upstream = state
@@ -835,10 +836,10 @@ async fn handle_inner(
             response.header("content-type"),
             &response.body,
         )?;
-        if let Some(id) = &request_id {
-            if messages.len() != 1 || messages[0].get("id") != Some(id) {
-                return Err(Error::value("unpaired upstream catalog response"));
-            }
+        if let Some(id) = &request_id
+            && (messages.len() != 1 || messages[0].get("id") != Some(id))
+        {
+            return Err(Error::value("unpaired upstream catalog response"));
         }
         let allowed = policy.tools_for(endpoint.as_deref());
         let aliases: HashMap<String, String> = policy
@@ -898,50 +899,49 @@ async fn handle_inner(
         response.header("content-type"),
         &response.body,
     )?;
-    if let Some(id) = &request_id {
-        if messages.len() != 1 || messages[0].get("id") != Some(id) {
-            return Err(Error::value("unpaired upstream response"));
-        }
+    if let Some(id) = &request_id
+        && (messages.len() != 1 || messages[0].get("id") != Some(id))
+    {
+        return Err(Error::value("unpaired upstream response"));
     }
     remember_session(state, &endpoint, &headers, &response, now).await?;
-    if method == "initialize" {
-        if let Some(result) = messages
+    if method == "initialize"
+        && let Some(result) = messages
             .first_mut()
             .and_then(|m| m.get_mut("result"))
             .and_then(Value::as_object_mut)
-        {
-            let negotiated = result
-                .get("protocolVersion")
-                .cloned()
-                .unwrap_or_else(|| json!(policy.mcp.spec_version));
-            if negotiated != json!(policy.mcp.spec_version) {
-                return Err(Error::value(
-                    "upstream did not negotiate the supported MCP version",
-                ));
-            }
-            if let Some(capabilities) = result.get("capabilities") {
-                let has_tools = match capabilities {
-                    Value::Object(map) => map.contains_key("tools"),
-                    Value::Array(items) => items.contains(&json!("tools")),
-                    Value::String(s) => s.contains("tools"),
-                    _ => false,
-                };
-                result.insert(
-                    "capabilities".into(),
-                    if has_tools {
-                        json!({"tools": {}})
-                    } else {
-                        json!({})
-                    },
-                );
-            }
-            let mut reply = json_response(
-                StatusCode::from_u16(response.status).unwrap_or(StatusCode::OK),
-                &messages[0],
-            );
-            copy_session_headers(&response, reply.headers_mut());
-            return Ok(reply);
+    {
+        let negotiated = result
+            .get("protocolVersion")
+            .cloned()
+            .unwrap_or_else(|| json!(policy.mcp.spec_version));
+        if negotiated != json!(policy.mcp.spec_version) {
+            return Err(Error::value(
+                "upstream did not negotiate the supported MCP version",
+            ));
         }
+        if let Some(capabilities) = result.get("capabilities") {
+            let has_tools = match capabilities {
+                Value::Object(map) => map.contains_key("tools"),
+                Value::Array(items) => items.contains(&json!("tools")),
+                Value::String(s) => s.contains("tools"),
+                _ => false,
+            };
+            result.insert(
+                "capabilities".into(),
+                if has_tools {
+                    json!({"tools": {}})
+                } else {
+                    json!({})
+                },
+            );
+        }
+        let mut reply = json_response(
+            StatusCode::from_u16(response.status).unwrap_or(StatusCode::OK),
+            &messages[0],
+        );
+        copy_session_headers(&response, reply.headers_mut());
+        return Ok(reply);
     }
     Ok(relay(&response, None))
 }
@@ -965,10 +965,10 @@ async fn remember_session(
     let owner = session_owner(&state.config.verifier, headers).await?;
     let mut sessions = state.sessions.lock().expect("sessions lock");
     let key = (endpoint.clone(), session_id.to_owned());
-    if let Some((previous, _)) = sessions.owners.get(&key) {
-        if *previous != owner {
-            return Err(Error::value("upstream reused another mandate's session"));
-        }
+    if let Some((previous, _)) = sessions.owners.get(&key)
+        && *previous != owner
+    {
+        return Err(Error::value("upstream reused another mandate's session"));
     }
     sessions.order.retain(|k| *k != key);
     sessions.order.push_back(key.clone());

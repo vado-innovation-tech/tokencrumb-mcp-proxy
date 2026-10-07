@@ -9,15 +9,15 @@ mod common;
 
 use std::sync::{Arc, Mutex};
 
+use common::stub::{self, StubRequest, StubResponse};
+use common::{bm_stdin, stderr, stdout};
+use serde_json::{Value, json};
 use tokencrumb_mcp_proxy::attestation::{Expected, verify_attestation};
 use tokencrumb_mcp_proxy::canonical::arguments_hash;
 use tokencrumb_mcp_proxy::client_transport::{ClientTransport, http_agent};
 use tokencrumb_mcp_proxy::json::{dumps, strict_json};
 use tokencrumb_mcp_proxy::keys::generate_keypair;
 use tokencrumb_mcp_proxy::nonce_cache::NonceCache;
-use common::stub::{self, StubRequest, StubResponse};
-use common::{bm_stdin, stderr, stdout};
-use serde_json::{Value, json};
 
 const TRANSPORT_ERROR: &str = "transport or request error";
 
@@ -121,7 +121,7 @@ fn tools_call_is_attested_with_the_agent_key() {
         "agent-7",
         Some(agent.private_str.clone()),
     );
-    let arguments = json!({"path": "/projets/acme/a.txt"});
+    let arguments = json!({"path": "/projects/acme/a.txt"});
     let line = json!({"jsonrpc": "2.0", "id": 3, "method": "tools/call",
                       "params": {"name": "read_file", "arguments": arguments}});
     assert_eq!(bridge.exchange(&line.to_string()).unwrap()["id"], json!(3));

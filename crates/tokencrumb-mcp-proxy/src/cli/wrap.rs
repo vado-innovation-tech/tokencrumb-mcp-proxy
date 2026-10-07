@@ -6,11 +6,11 @@
 use std::io::{BufRead, Write};
 use std::path::Path;
 
+use serde_json::{Value, json};
 use tokencrumb_mcp_proxy::biscuit_ops as ops;
 use tokencrumb_mcp_proxy::client_transport::{ClientTransport, MAX_REQUEST, http_agent};
 use tokencrumb_mcp_proxy::json::dumps;
 use tokencrumb_mcp_proxy::validation::py_strip;
-use serde_json::{Value, json};
 
 use super::render::{Stream, paint};
 use super::{Exit, Outcome, fail, load_private, read_token_arg, status};
@@ -125,14 +125,14 @@ pub fn client_wrap(
     // A proxy behind a private PKI presents a certificate no public bundle chains to.
     // `--ca` names the anchor; disabling verification is never offered.
     let ca_path = ca.filter(|c| !c.is_empty()).map(Path::new);
-    if let (Some(ca), Some(path)) = (ca, ca_path) {
-        if !path.is_file() {
-            status(&format!(
-                "{} CA bundle not found: {ca}",
-                paint("client-wrap:", "31", Stream::Stderr)
-            ));
-            return Err(Exit::Code(2));
-        }
+    if let (Some(ca), Some(path)) = (ca, ca_path)
+        && !path.is_file()
+    {
+        status(&format!(
+            "{} CA bundle not found: {ca}",
+            paint("client-wrap:", "31", Stream::Stderr)
+        ));
+        return Err(Exit::Code(2));
     }
     let agent = match http_agent(ca_path) {
         Ok(agent) => agent,
@@ -170,10 +170,8 @@ pub fn client_wrap(
             Line::Text(text) if py_strip(&text).is_empty() => continue,
             Line::Text(text) => {
                 if let Some(token_b64) = watched.as_mut().and_then(TokenFile::changed) {
-                    if !agent_id_given {
-                        if let Ok(Some(id)) = ops::authority_agent_id(&token_b64) {
-                            bridge.agent_id = id.display();
-                        }
+                    if !agent_id_given && let Ok(Some(id)) = ops::authority_agent_id(&token_b64) {
+                        bridge.agent_id = id.display();
                     }
                     if bridge.rotate_token(&token_b64) {
                         status(&format!(

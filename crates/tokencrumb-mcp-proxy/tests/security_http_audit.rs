@@ -9,6 +9,11 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use axum::http::StatusCode;
+use bytes::Bytes;
+use common::proxy::{
+    Canned, FakeUpstream, RecordingServer, World, audit_entries, bearer, options, post, test_policy,
+};
+use serde_json::{Value, json};
 use tokencrumb_mcp_proxy::ErrorKind;
 use tokencrumb_mcp_proxy::audit::{
     AuditLog, Record, TrustedKeys, head_attestation, trusted_from, verify_log,
@@ -16,13 +21,10 @@ use tokencrumb_mcp_proxy::audit::{
 use tokencrumb_mcp_proxy::keys::{generate_keypair, key_id};
 use tokencrumb_mcp_proxy::policy::Policy;
 use tokencrumb_mcp_proxy::proxy::app::{ProxyConfig, create_app};
-use tokencrumb_mcp_proxy::proxy::upstream::{ForwardHeaders, HttpUpstream, SharedUpstream, Upstream};
-use tokencrumb_mcp_proxy::verifier::Headers;
-use bytes::Bytes;
-use common::proxy::{
-    Canned, FakeUpstream, RecordingServer, World, audit_entries, bearer, options, post, test_policy,
+use tokencrumb_mcp_proxy::proxy::upstream::{
+    ForwardHeaders, HttpUpstream, SharedUpstream, Upstream,
 };
-use serde_json::{Value, json};
+use tokencrumb_mcp_proxy::verifier::Headers;
 
 fn allow() -> Record {
     Record {
@@ -41,7 +43,7 @@ fn forward_headers(pairs: &[(&str, &str)]) -> ForwardHeaders {
 #[tokio::test]
 async fn malformed_calls_are_audited_and_never_forwarded() {
     let cases: [&[u8]; 4] = [
-        br#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"read_file","arguments":{"path":"/bad","path":"/projets/acme/x"}}}"#,
+        br#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"read_file","arguments":{"path":"/bad","path":"/projects/acme/x"}}}"#,
         br#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":false}"#,
         br#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"read_file","arguments":false}}"#,
         br#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"read_file","arguments":{"v":NaN}}}"#,
@@ -120,7 +122,7 @@ async fn one_policy_snapshot_drives_decision_and_audit() {
     let token = bearer(&w.native_token());
     post(
         &app,
-        read_call(Some("/projets/acme/x")),
+        read_call(Some("/projects/acme/x")),
         &[("authorization", &token)],
     )
     .await;
@@ -287,7 +289,11 @@ fn corrupted_audit_cannot_resume_or_be_anchored() {
     log.record(allow()).unwrap();
     let mut record: Value = serde_json::from_str(&std::fs::read_to_string(&p).unwrap()).unwrap();
     record["entry"]["decision"] = json!("DENY");
-    std::fs::write(&p, format!("{}\n", tokencrumb_mcp_proxy::json::dumps(&record))).unwrap();
+    std::fs::write(
+        &p,
+        format!("{}\n", tokencrumb_mcp_proxy::json::dumps(&record)),
+    )
+    .unwrap();
     let err = AuditLog::new(&p, &key.private_str, "gw", "d", TrustedKeys::new())
         .err()
         .expect("resumed a corrupted chain");

@@ -14,14 +14,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
+use common::stub::{self, StubResponse};
+use common::{golden, key};
+use serde_json::{Map, Value, json};
 use tokencrumb_mcp_proxy::ErrorKind;
 use tokencrumb_mcp_proxy::keys::generate_keypair;
 use tokencrumb_mcp_proxy::registry::{
     Store, create_registry_app, registry_resolver, signed_record, verify_record,
 };
-use common::stub::{self, StubResponse};
-use common::{golden, key};
-use serde_json::{Map, Value, json};
 use tower::ServiceExt as _;
 
 const TOKEN: &str = "s3cret-write-token";

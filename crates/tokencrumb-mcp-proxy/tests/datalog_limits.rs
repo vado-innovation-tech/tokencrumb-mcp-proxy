@@ -10,10 +10,10 @@
 
 mod common;
 
-use tokencrumb_mcp_proxy::policy::{Policy, parse_policy};
-use tokencrumb_mcp_proxy::verifier::Decision;
 use common::proxy::{World, append_block, biscuit_headers, forge, mandate, options, verify};
 use serde_json::{Value, json};
+use tokencrumb_mcp_proxy::policy::{Policy, parse_policy};
+use tokencrumb_mcp_proxy::verifier::Decision;
 
 /// 21 facts joined with themselves -> 441 derived facts: under biscuit-auth's default
 /// ceiling of 1000, over the 100 configured below.

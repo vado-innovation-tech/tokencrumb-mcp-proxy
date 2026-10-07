@@ -1,0 +1,468 @@
+{
+ "args_mapping": {
+  "result": {
+   "ok": {
+    "budget_total": null,
+    "clock_skew_seconds": 30,
+    "deny_unknown_tools": true,
+    "limits": {
+     "max_facts": 1000,
+     "max_iterations": 100,
+     "max_time_ms": 50,
+     "max_token_size": 16384
+    },
+    "max_ttl_seconds": 28800,
+    "mcp": {
+     "allow_methods": [
+      "initialize",
+      "ping",
+      "notifications/initialized",
+      "notifications/cancelled"
+     ],
+     "spec_version": "2025-06-18"
+    },
+    "min_profile": "native",
+    "mode": "enforce",
+    "revocation_path": null,
+    "tools": {
+     "a": {
+      "args": [
+       {
+        "name": "x",
+        "source_key": "x"
+       },
+       {
+        "name": "z",
+        "source_key": "y"
+       }
+      ],
+      "budget": null,
+      "name": "a",
+      "operation": "read",
+      "require": [],
+      "resource_exact": null,
+      "resource_from": null,
+      "resource_prefix": null,
+      "upstream": null,
+      "upstream_tool": null
+     }
+    },
+    "upstreams": {}
+   }
+  },
+  "text": "tools: [{name: a, operation: read, args: [{from: arguments.x}, {from: y, as: z}]}]\n"
+ },
+ "bad_mode": {
+  "result": {
+   "err": "ValueError",
+   "message": "mode: expected one of ['enforce', 'warn-only']"
+  },
+  "text": "mode: audit\n"
+ },
+ "budget_bool": {
+  "result": {
+   "err": "ValueError",
+   "message": "budget_total: expected integer in [0, 9007199254740991]"
+  },
+  "text": "budget_total: true\n"
+ },
+ "budget_float": {
+  "result": {
+   "err": "ValueError",
+   "message": "budget_total: expected integer in [0, 9007199254740991]"
+  },
+  "text": "budget_total: 2.5\n"
+ },
+ "dup_key": {
+  "result": {
+   "err": "ValueError",
+   "message": "policy: duplicate or invalid key 'mode'"
+  },
+  "text": "mode: enforce\nmode: warn-only\n"
+ },
+ "empty": {
+  "result": {
+   "err": "ValueError",
+   "message": "policy: expected an object"
+  },
+  "text": ""
+ },
+ "int_key": {
+  "result": {
+   "err": "ValueError",
+   "message": "policy: duplicate or invalid key 1"
+  },
+  "text": "1: a\n"
+ },
+ "limits_unknown": {
+  "result": {
+   "err": "ValueError",
+   "message": "limits: unknown keys ['max_rules']"
+  },
+  "text": "limits: {max_rules: 3}\n"
+ },
+ "limits_zero": {
+  "result": {
+   "err": "ValueError",
+   "message": "limits.max_facts: expected integer in [1, 9007199254740991]"
+  },
+  "text": "limits: {max_facts: 0}\n"
+ },
+ "methods_tools_call": {
+  "result": {
+   "err": "ValueError",
+   "message": "mcp.allow_methods must not contain 'tools/call' (handled separately)"
+  },
+  "text": "mcp: {allow_methods: [tools/call]}\n"
+ },
+ "methods_unknown": {
+  "result": {
+   "err": "ValueError",
+   "message": "mcp.allow_methods: expected one of ['initialize', 'notifications/cancelled', 'notifications/initialized', 'ping']"
+  },
+  "text": "mcp: {allow_methods: [resources/read]}\n"
+ },
+ "not_mapping": {
+  "result": {
+   "err": "ValueError",
+   "message": "policy: expected an object"
+  },
+  "text": "- a\n"
+ },
+ "null_tools": {
+  "result": {
+   "err": "ValueError",
+   "message": "tools: expected a list"
+  },
+  "text": "tools:\n"
+ },
+ "prefix_and_exact": {
+  "result": {
+   "err": "ValueError",
+   "message": "choose resource_prefix or resource_exact"
+  },
+  "text": "tools: [{name: a, operation: read, resource: {from: arguments.p}, allow: {resource_prefix: /x, resource_exact: /y}}]\n"
+ },
+ "prefix_canon": {
+  "result": {
+   "ok": {
+    "budget_total": null,
+    "clock_skew_seconds": 30,
+    "deny_unknown_tools": true,
+    "limits": {
+     "max_facts": 1000,
+     "max_iterations": 100,
+     "max_time_ms": 50,
+     "max_token_size": 16384
+    },
+    "max_ttl_seconds": 28800,
+    "mcp": {
+     "allow_methods": [
+      "initialize",
+      "ping",
+      "notifications/initialized",
+      "notifications/cancelled"
+     ],
+     "spec_version": "2025-06-18"
+    },
+    "min_profile": "native",
+    "mode": "enforce",
+    "revocation_path": null,
+    "tools": {
+     "a": {
+      "args": [],
+      "budget": null,
+      "name": "a",
+      "operation": "read",
+      "require": [],
+      "resource_exact": null,
+      "resource_from": "arguments.p",
+      "resource_prefix": "/y/",
+      "upstream": null,
+      "upstream_tool": null
+     }
+    },
+    "upstreams": {}
+   }
+  },
+  "text": "tools: [{name: a, operation: read, resource: {from: arguments.p}, allow: {resource_prefix: '/x/%2e%2e/y'}}]\n"
+ },
+ "prefix_without_from": {
+  "result": {
+   "err": "ValueError",
+   "message": "a resource restriction requires resource.from"
+  },
+  "text": "tools: [{name: a, operation: read, allow: {resource_prefix: /x}}]\n"
+ },
+ "require_unknown": {
+  "result": {
+   "err": "ValueError",
+   "message": "require fact: expected one of ['arguments_bound', 'call_signature_valid', 'capability_bound', 'nonce_fresh']"
+  },
+  "text": "tools: [{name: a, operation: read, require: [admin]}]\n"
+ },
+ "revocation": {
+  "result": {
+   "ok": {
+    "budget_total": null,
+    "clock_skew_seconds": 30,
+    "deny_unknown_tools": true,
+    "limits": {
+     "max_facts": 1000,
+     "max_iterations": 100,
+     "max_time_ms": 50,
+     "max_token_size": 16384
+    },
+    "max_ttl_seconds": 28800,
+    "mcp": {
+     "allow_methods": [
+      "initialize",
+      "ping",
+      "notifications/initialized",
+      "notifications/cancelled"
+     ],
+     "spec_version": "2025-06-18"
+    },
+    "min_profile": "native",
+    "mode": "enforce",
+    "revocation_path": "/tmp/revoked.list",
+    "tools": {},
+    "upstreams": {}
+   }
+  },
+  "text": "revocation: /tmp/revoked.list\n"
+ },
+ "root": {
+  "result": {
+   "ok": {
+    "budget_total": null,
+    "clock_skew_seconds": 30,
+    "deny_unknown_tools": true,
+    "limits": {
+     "max_facts": 1000,
+     "max_iterations": 100,
+     "max_time_ms": 10,
+     "max_token_size": 16384
+    },
+    "max_ttl_seconds": 28800,
+    "mcp": {
+     "allow_methods": [
+      "initialize",
+      "ping",
+      "notifications/initialized",
+      "notifications/cancelled"
+     ],
+     "spec_version": "2025-06-18"
+    },
+    "min_profile": "hardened_biscuit_anchored",
+    "mode": "enforce",
+    "revocation_path": null,
+    "tools": {
+     "read_file": {
+      "args": [],
+      "budget": 200,
+      "name": "read_file",
+      "operation": "read",
+      "require": [
+       "call_signature_valid",
+       "nonce_fresh",
+       "arguments_bound"
+      ],
+      "resource_exact": null,
+      "resource_from": "arguments.path",
+      "resource_prefix": "/workspace/",
+      "upstream": null,
+      "upstream_tool": null
+     }
+    },
+    "upstreams": {}
+   }
+  },
+  "text": "# TokenCrumb - MCP Proxy: generic filesystem policy.\n# Configure only tools actually provided by your upstream server.\nmode: enforce\ndeny_unknown_tools: true\nmin_profile: hardened_biscuit_anchored\nmax_ttl: 8h\nclock_skew_seconds: 30\nlimits:\n  max_facts: 1000\n  max_iterations: 100\n  max_time_ms: 10\n  max_token_size: 16384\nmcp:\n  spec_version: \"2025-06-18\"\n  allow_methods:\n    - initialize\n    - ping\n    - notifications/initialized\n    - notifications/cancelled\ntools:\n  - name: read_file\n    operation: read\n    resource:\n      from: arguments.path\n    allow:\n      resource_prefix: /workspace/\n      budget: 200\n    require:\n      - call_signature_valid\n      - nonce_fresh\n      - arguments_bound\n"
+ },
+ "skew_big": {
+  "result": {
+   "err": "ValueError",
+   "message": "clock_skew_seconds: expected integer in [0, 3600]"
+  },
+  "text": "clock_skew_seconds: 4000\n"
+ },
+ "spec_date": {
+  "result": {
+   "err": "ValueError",
+   "message": "spec_version: expected one of ['2025-06-18']"
+  },
+  "text": "mcp: {spec_version: 2025-06-18}\n"
+ },
+ "spec_other": {
+  "result": {
+   "err": "ValueError",
+   "message": "spec_version: expected one of ['2025-06-18']"
+  },
+  "text": "mcp: {spec_version: '2024-11-05'}\n"
+ },
+ "str_bool": {
+  "result": {
+   "err": "ValueError",
+   "message": "deny_unknown_tools: expected boolean"
+  },
+  "text": "deny_unknown_tools: 'true'\n"
+ },
+ "tool_twice": {
+  "result": {
+   "err": "ValueError",
+   "message": "tool 'a' is mapped twice"
+  },
+  "text": "tools: [{name: a, operation: read}, {name: a, operation: read}]\n"
+ },
+ "ttl_bad": {
+  "result": {
+   "err": "DurationError",
+   "message": "invalid duration: '1.5h' (use e.g. 300s, 15m, 8h, 1d)"
+  },
+  "text": "max_ttl: 1.5h\n"
+ },
+ "ttl_int": {
+  "result": {
+   "ok": {
+    "budget_total": null,
+    "clock_skew_seconds": 30,
+    "deny_unknown_tools": true,
+    "limits": {
+     "max_facts": 1000,
+     "max_iterations": 100,
+     "max_time_ms": 50,
+     "max_token_size": 16384
+    },
+    "max_ttl_seconds": 60,
+    "mcp": {
+     "allow_methods": [
+      "initialize",
+      "ping",
+      "notifications/initialized",
+      "notifications/cancelled"
+     ],
+     "spec_version": "2025-06-18"
+    },
+    "min_profile": "native",
+    "mode": "enforce",
+    "revocation_path": null,
+    "tools": {},
+    "upstreams": {}
+   }
+  },
+  "text": "max_ttl: 60\n"
+ },
+ "ttl_zero": {
+  "result": {
+   "err": "ValueError",
+   "message": "max_ttl: expected integer in [1, 9007199254740991]"
+  },
+  "text": "max_ttl: 0\n"
+ },
+ "unknown_key": {
+  "result": {
+   "err": "ValueError",
+   "message": "policy: unknown keys ['foo']"
+  },
+  "text": "foo: 1\n"
+ },
+ "upstream_bad_name": {
+  "result": {
+   "err": "ValueError",
+   "message": "invalid upstream name (literal URL segment required)"
+  },
+  "text": "upstreams: {'a/b': 'http://x'}\n"
+ },
+ "upstream_inferred": {
+  "result": {
+   "ok": {
+    "budget_total": null,
+    "clock_skew_seconds": 30,
+    "deny_unknown_tools": true,
+    "limits": {
+     "max_facts": 1000,
+     "max_iterations": 100,
+     "max_time_ms": 50,
+     "max_token_size": 16384
+    },
+    "max_ttl_seconds": 28800,
+    "mcp": {
+     "allow_methods": [
+      "initialize",
+      "ping",
+      "notifications/initialized",
+      "notifications/cancelled"
+     ],
+     "spec_version": "2025-06-18"
+    },
+    "min_profile": "native",
+    "mode": "enforce",
+    "revocation_path": null,
+    "tools": {
+     "t": {
+      "args": [],
+      "budget": null,
+      "name": "t",
+      "operation": "read",
+      "require": [],
+      "resource_exact": null,
+      "resource_from": null,
+      "resource_prefix": null,
+      "upstream": "a",
+      "upstream_tool": null
+     }
+    },
+    "upstreams": {
+     "a": "http://x"
+    }
+   }
+  },
+  "text": "upstreams: {a: 'http://x'}\ntools: [{name: t, operation: read}]\n"
+ },
+ "upstream_missing": {
+  "result": {
+   "err": "ValueError",
+   "message": "tool 't': no `upstream:` while 2 are declared (a, b)"
+  },
+  "text": "upstreams: {a: 'http://x', b: 'http://y'}\ntools: [{name: t, operation: read}]\n"
+ },
+ "upstream_undeclared": {
+  "result": {
+   "err": "ValueError",
+   "message": "tool 't': upstream 'b' is not declared in `upstreams:`"
+  },
+  "text": "upstreams: {a: 'http://x'}\ntools: [{name: t, operation: read, upstream: b}]\n"
+ },
+ "yes_bool": {
+  "result": {
+   "ok": {
+    "budget_total": null,
+    "clock_skew_seconds": 30,
+    "deny_unknown_tools": true,
+    "limits": {
+     "max_facts": 1000,
+     "max_iterations": 100,
+     "max_time_ms": 50,
+     "max_token_size": 16384
+    },
+    "max_ttl_seconds": 28800,
+    "mcp": {
+     "allow_methods": [
+      "initialize",
+      "ping",
+      "notifications/initialized",
+      "notifications/cancelled"
+     ],
+     "spec_version": "2025-06-18"
+    },
+    "min_profile": "native",
+    "mode": "enforce",
+    "revocation_path": null,
+    "tools": {},
+    "upstreams": {}
+   }
+  },
+  "text": "deny_unknown_tools: yes\n"
+ }
+}

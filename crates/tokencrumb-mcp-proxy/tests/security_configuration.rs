@@ -1,13 +1,13 @@
-//! C-061/063/066/067/068/069: configuration mistakes must fail at the boundary.
+//! Configuration mistakes must fail at the boundary.
 //!
 //! Ported from `tests/test_security_configuration.py`.
 
 use std::path::PathBuf;
 
+use serde_json::{Value, json};
 use tokencrumb_mcp_proxy::ErrorKind;
 use tokencrumb_mcp_proxy::policy::{load_policy, parse_policy};
 use tokencrumb_mcp_proxy::profiles::rank;
-use serde_json::{Value, json};
 
 #[test]
 fn configuration_mistakes_never_load() {

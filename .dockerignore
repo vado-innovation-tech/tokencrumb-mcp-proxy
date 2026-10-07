@@ -1,0 +1,15 @@
+**
+!Cargo.toml
+!Cargo.lock
+!LICENSE
+!README.md
+!crates/
+!crates/tokencrumb-mcp-proxy/
+!crates/tokencrumb-mcp-proxy/Cargo.toml
+!crates/tokencrumb-mcp-proxy/src/
+!crates/tokencrumb-mcp-proxy/src/**
+!tools/
+!tools/interop/
+!tools/interop/Cargo.toml
+!tools/interop/src/
+!tools/interop/src/**

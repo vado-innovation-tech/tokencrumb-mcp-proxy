@@ -4,12 +4,12 @@
 
 mod common;
 
+use common::proxy::{World, append_block, forge, mandate, str_term};
 use tokencrumb_mcp_proxy::biscuit_ops::{
     Attenuation, ForgeRequest, attenuate, authority_pubkey, authority_required_profile,
     capability_key, inspect, min_budget_cap,
 };
 use tokencrumb_mcp_proxy::token_contract::Term;
-use common::proxy::{World, append_block, forge, mandate, str_term};
 
 fn s(value: &str) -> Term {
     Term::Str(value.to_owned())
@@ -21,7 +21,7 @@ fn forge_inspect_roundtrip() {
     let token = forge(
         &w.authority.private_str,
         ForgeRequest {
-            resource_prefix: Some("/projets/acme/".into()),
+            resource_prefix: Some("/projects/acme/".into()),
             agent_pubkey: Some(w.agent.public_str.clone()),
             required_profile: "hardened_biscuit_anchored".into(),
             ..mandate("a1", "read_file", "read", 3600, 200)
@@ -48,7 +48,7 @@ fn projets(w: &World) -> String {
     forge(
         &w.authority.private_str,
         ForgeRequest {
-            resource_prefix: Some("/projets/".into()),
+            resource_prefix: Some("/projects/".into()),
             ..mandate("a1", "read_file", "read", 3600, 200)
         },
     )
@@ -61,7 +61,7 @@ fn attenuate_is_monotonic_and_appends() {
         &projets(&w),
         &w.authority.public_str,
         &Attenuation {
-            resource: Some("/projets/acme/".into()),
+            resource: Some("/projects/acme/".into()),
             budget: Some(10),
             ..Default::default()
         },
@@ -98,7 +98,7 @@ fn provenance_ignores_attenuation_agent_pubkey() {
     let token = forge(
         &w.authority.private_str,
         ForgeRequest {
-            resource_prefix: Some("/projets/".into()),
+            resource_prefix: Some("/projects/".into()),
             agent_pubkey: Some(w.agent.public_str.clone()),
             required_profile: "hardened_biscuit_anchored".into(),
             ..mandate("a1", "read_file", "read", 3600, 200)

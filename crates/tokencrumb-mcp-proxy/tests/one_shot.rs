@@ -11,12 +11,12 @@ mod common;
 
 use std::sync::Arc;
 
+use common::proxy::{World, biscuit_headers, forge, mandate, options, verify};
+use serde_json::json;
 use tokencrumb_mcp_proxy::biscuit_ops::{Attenuation, ForgeRequest, attenuate};
 use tokencrumb_mcp_proxy::budget::BudgetStore;
 use tokencrumb_mcp_proxy::policy::{Policy, parse_policy};
 use tokencrumb_mcp_proxy::verifier::{Decision, Verifier};
-use common::proxy::{World, biscuit_headers, forge, mandate, options, verify};
-use serde_json::json;
 
 const APPROVED: &str = "v-7";
 const EDITED: &str = "v-8";

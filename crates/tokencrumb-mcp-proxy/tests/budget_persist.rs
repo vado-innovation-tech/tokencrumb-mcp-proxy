@@ -2,9 +2,9 @@
 //!
 //! Ported from `tests/test_budget_persist.py`.
 
+use serde_json::{Value, json};
 use tokencrumb_mcp_proxy::ErrorKind;
 use tokencrumb_mcp_proxy::budget::BudgetStore;
-use serde_json::{Value, json};
 
 const KEY: &str = "revocation-id-1";
 

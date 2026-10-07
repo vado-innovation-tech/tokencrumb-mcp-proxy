@@ -1,0 +1,24 @@
+{
+ "now": 1791355739,
+ "public": "ed25519/ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+ "record": {
+  "agent_id": "agent-reg",
+  "agent_pubkey": "ed25519/6e7a1cdd29b0b78fd13af4c5598feff4ef2a97166e3ca6f2e4fbfccd80505bf1",
+  "domain": "biscuitmcp/agent-registry",
+  "expires_at": 1791355769,
+  "issued_at": 1791355739,
+  "key_id": "fe812c12f3ab4ce6",
+  "owner_ref": "team-a",
+  "seq": 12,
+  "signature": "l0awe8JsZpV0aihfAri2Gnj4u/Y9JZZWs1TMs6zQqSVyrve5CecHBr1LUPA1bNcUDffQ7hPwV/uz2evdteUADA==",
+  "status": "active",
+  "version": 1
+ },
+ "verify": {
+  "ok": [
+   "ed25519/6e7a1cdd29b0b78fd13af4c5598feff4ef2a97166e3ca6f2e4fbfccd80505bf1",
+   1791355769,
+   12
+  ]
+ }
+}

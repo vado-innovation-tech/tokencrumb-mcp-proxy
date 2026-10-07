@@ -1,7 +1,7 @@
-//! One process, one endpoint per upstream (ADR-0006).
+//! One process, one endpoint per upstream (architecture decision 3).
 //!
 //! What the shape has to buy, and what it must not cost:
-//!   - a client config that still lists one entry per server (ADR-0005);
+//!   - a client config that still lists one entry per server (architecture decision 3);
 //!   - a budget and an audit chain shared across upstreams — the reason for one process;
 //!   - sessions, catalogs and namespaces that stay 1:1 per endpoint.
 //!
@@ -12,14 +12,14 @@ mod common;
 use std::sync::Arc;
 
 use axum::http::StatusCode;
-use tokencrumb_mcp_proxy::ErrorKind;
-use tokencrumb_mcp_proxy::policy::{Policy, parse_policy};
-use tokencrumb_mcp_proxy::proxy::upstream::SharedUpstream;
 use common::proxy::{
     FakeUpstream, Reply, TEST_AUDIENCE, World, bearer, build_token, date_term, in_seconds, options,
     post_to, str_term,
 };
 use serde_json::{Value, json};
+use tokencrumb_mcp_proxy::ErrorKind;
+use tokencrumb_mcp_proxy::policy::{Policy, parse_policy};
+use tokencrumb_mcp_proxy::proxy::upstream::SharedUpstream;
 
 const TOOLS: [(&str, &str); 2] = [("catalog", "search_objects"), ("inventory", "get_stock")];
 
@@ -178,7 +178,7 @@ async fn tools_list_shows_only_the_endpoint_s_own_catalog() {
 // -- what the single process buys -------------------------------------------------------
 
 /// "Three calls, every system included" — inexpressible with one proxy per upstream,
-/// and the reason ADR-0006 keeps a single process.
+/// and the reason architecture decision 3 keeps a single process.
 #[tokio::test]
 async fn the_budget_is_shared_across_upstreams() {
     let w = World::new();

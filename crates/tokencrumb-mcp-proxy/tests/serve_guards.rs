@@ -11,8 +11,8 @@ mod common;
 
 use std::path::Path;
 
-use tokencrumb_mcp_proxy::net::{guard_cleartext_bind, tls_pair};
 use common::{bm, stderr};
+use tokencrumb_mcp_proxy::net::{guard_cleartext_bind, tls_pair};
 
 #[test]
 fn loopback_in_the_clear_is_allowed() {

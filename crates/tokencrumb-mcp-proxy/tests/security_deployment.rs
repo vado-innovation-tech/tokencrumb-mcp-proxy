@@ -11,14 +11,16 @@ use std::sync::{Arc, Once};
 use std::time::Duration;
 
 use axum::http::StatusCode;
-use tokencrumb_mcp_proxy::ErrorKind;
-use tokencrumb_mcp_proxy::policy::{PolicyReloader, load_policy};
-use tokencrumb_mcp_proxy::proxy::runtime::{ServeOptions, build_config};
-use tokencrumb_mcp_proxy::proxy::upstream::{ForwardHeaders, HttpUpstream, SharedUpstream, Upstream};
-use tokencrumb_mcp_proxy::storage::write_secure;
 use bytes::Bytes;
 use common::proxy::{Canned, Recorded, RecordingServer, World, post, test_policy};
 use serde_json::{Value, json};
+use tokencrumb_mcp_proxy::ErrorKind;
+use tokencrumb_mcp_proxy::policy::{PolicyReloader, load_policy};
+use tokencrumb_mcp_proxy::proxy::runtime::{ServeOptions, build_config};
+use tokencrumb_mcp_proxy::proxy::upstream::{
+    ForwardHeaders, HttpUpstream, SharedUpstream, Upstream,
+};
+use tokencrumb_mcp_proxy::storage::write_secure;
 
 const UP_API: &str = "TOKENCRUMB_TEST_UP_API";
 const ALICE_AUTH: &str = "TOKENCRUMB_TEST_ALICE_AUTH";
@@ -187,7 +189,7 @@ fn protected_mcp(secret: &'static str) -> impl Fn(&Recorded) -> Canned + Send + 
 }
 
 /// Python drove the real `mcp` client SDK against the Python Catalog mock behind its
-/// API-key boundary. No Rust MCP client or mock exists yet, so this runs the same
+/// API-key boundary. This test runs the same
 /// sequence (direct refusals, then initialize / initialized / tools/list through the
 /// gateway over a real socket) against a minimal protected server.
 #[tokio::test]

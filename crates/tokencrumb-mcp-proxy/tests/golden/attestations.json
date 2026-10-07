@@ -1,0 +1,709 @@
+{
+ "args": {
+  "query": "select 1",
+  "schema": "analytics"
+ },
+ "results": {
+  "agent_id_space": {
+   "first": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: attestation agent_id: expected a nonempty string without surrounding whitespace"
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMiwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAiIHgiLCAidG9vbCI6ICJleGVjdXRlX3NxbCIsICJhcmd1bWVudHNfaGFzaCI6ICI2MjcyYzI5ZDhlMmRmZTgwYmI1YzE5MWRjOWZiMzg4YTNhNWVlZjE5NWIyNDJhNDc1NzQ2YjkxOGNlZTZmOGVmIiwgIm5vbmNlIjogIjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmIiwgInRpbWVzdGFtcCI6ICIyMDI2LTEwLTA3VDA2OjQ4OjU5WiIsICJiaXNjdWl0X2hhc2giOiAiMDc2YmJjZjVjODY5ZDQ3ZDJiNGUyZTBlOThlYjAxNzdhNjNiNGEzY2ZmMjE5NmExMWRhOWJjMTNlNWM2NDIxOSJ9LCAic2lnIjogImM5enJNdGFzOFVnM2R3WkNGaG12SC1tanZOQkIyR1BreUR6TlNyX0tIQ0xLemRGM01CMFI4VTZsZjJ4YjNuQW80MVI2ZWppOURGWDUtSTZOMjVMYUFBIn0",
+   "second": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: attestation agent_id: expected a nonempty string without surrounding whitespace"
+   }
+  },
+  "bad_sig_b64": {
+   "first": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "attestation signature invalid: "
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMiwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAiYWdlbnQtcmFnLTAxIiwgInRvb2wiOiAiZXhlY3V0ZV9zcWwiLCAiYXJndW1lbnRzX2hhc2giOiAiNjI3MmMyOWQ4ZTJkZmU4MGJiNWMxOTFkYzlmYjM4OGEzYTVlZWYxOTViMjQyYTQ3NTc0NmI5MThjZWU2ZjhlZiIsICJub25jZSI6ICIwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiIsICJ0aW1lc3RhbXAiOiAiMjAyNi0xMC0wN1QwNjo0ODo1OVoiLCAiYmlzY3VpdF9oYXNoIjogIjA3NmJiY2Y1Yzg2OWQ0N2QyYjRlMmUwZTk4ZWIwMTc3YTYzYjRhM2NmZjIxOTZhMTFkYTliYzEzZTVjNjQyMTkifSwgInNpZyI6ICJAQCJ9",
+   "second": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "attestation signature invalid: "
+   }
+  },
+  "bool_version": {
+   "first": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: unsupported attestation version/domain; regenerate with client-wrap"
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogdHJ1ZSwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAiYWdlbnQtcmFnLTAxIiwgInRvb2wiOiAiZXhlY3V0ZV9zcWwiLCAiYXJndW1lbnRzX2hhc2giOiAiNjI3MmMyOWQ4ZTJkZmU4MGJiNWMxOTFkYzlmYjM4OGEzYTVlZWYxOTViMjQyYTQ3NTc0NmI5MThjZWU2ZjhlZiIsICJub25jZSI6ICIwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiIsICJ0aW1lc3RhbXAiOiAiMjAyNi0xMC0wN1QwNjo0ODo1OVoiLCAiYmlzY3VpdF9oYXNoIjogIjA3NmJiY2Y1Yzg2OWQ0N2QyYjRlMmUwZTk4ZWIwMTc3YTYzYjRhM2NmZjIxOTZhMTFkYTliYzEzZTVjNjQyMTkifSwgInNpZyI6ICJiNEhkQjh4NExyd1ozR3FITGMtSVZ2eVZSV2V0RkFneUNoX1l0NWt3TGZJdTRaNTJlRjBkSW4wWnRqLXRQQWo0U2ZETWg4VkxxT1ZHbTNZNnhXUEZBZyJ9",
+   "second": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: unsupported attestation version/domain; regenerate with client-wrap"
+   }
+  },
+  "dup_keys": {
+   "first": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: duplicate JSON key: payload"
+   },
+   "header": "eyJwYXlsb2FkIjp7fSwicGF5bG9hZCI6e30sInNpZyI6IiJ9",
+   "second": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: duplicate JSON key: payload"
+   }
+  },
+  "extra_field": {
+   "first": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": true,
+    "call_signature_valid": true,
+    "capability_bound": true,
+    "nonce_expires_at": 1791355830.0,
+    "nonce_fresh": true,
+    "nonce_key": "0db7858f467c98ffd7c54f002f3f2813c99291f76a351ab5cf4a6af750c82db5",
+    "ok": true,
+    "reason": null
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMiwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAiYWdlbnQtcmFnLTAxIiwgInRvb2wiOiAiZXhlY3V0ZV9zcWwiLCAiYXJndW1lbnRzX2hhc2giOiAiNjI3MmMyOWQ4ZTJkZmU4MGJiNWMxOTFkYzlmYjM4OGEzYTVlZWYxOTViMjQyYTQ3NTc0NmI5MThjZWU2ZjhlZiIsICJub25jZSI6ICIwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiIsICJ0aW1lc3RhbXAiOiAiMjAyNi0xMC0wN1QwNjo0ODo1OVoiLCAiYmlzY3VpdF9oYXNoIjogIjA3NmJiY2Y1Yzg2OWQ0N2QyYjRlMmUwZTk4ZWIwMTc3YTYzYjRhM2NmZjIxOTZhMTFkYTliYzEzZTVjNjQyMTkiLCAiZXh0cmEiOiAieCJ9LCAic2lnIjogIkhlN3h2aTZNU3p6WDhVU1ZoNlphUHVabGtNcDQxekNzdTZxbWxIeGdpVmxZcDRDczdNYjFRVjlHb1JvQm84T0gxN1NCanBCdFRMQms5TUpyRkhySUJBIn0",
+   "second": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": false,
+    "call_signature_valid": true,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "nonce replay or cache full"
+   }
+  },
+  "future": {
+   "first": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": false,
+    "call_signature_valid": true,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "timestamp in the future (clock aberrant)"
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMiwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAiYWdlbnQtcmFnLTAxIiwgInRvb2wiOiAiZXhlY3V0ZV9zcWwiLCAiYXJndW1lbnRzX2hhc2giOiAiNjI3MmMyOWQ4ZTJkZmU4MGJiNWMxOTFkYzlmYjM4OGEzYTVlZWYxOTViMjQyYTQ3NTc0NmI5MThjZWU2ZjhlZiIsICJub25jZSI6ICJhNjQyMWU2NDI4ODRkYmIxMDY2OWUxNDA1ZWQ0YmViZCIsICJ0aW1lc3RhbXAiOiAiMjAyNi0xMC0wN1QwNjo1MDozOVoiLCAiYmlzY3VpdF9oYXNoIjogIjA3NmJiY2Y1Yzg2OWQ0N2QyYjRlMmUwZTk4ZWIwMTc3YTYzYjRhM2NmZjIxOTZhMTFkYTliYzEzZTVjNjQyMTkifSwgInNpZyI6ICJEdVhIUW15SlM3SC02QnZsTmZyNEstU1drbFgwdHdocHBfb0RwYVdodmQ0YzNMczZZZU00ZGk4MTdPcTZZalA2QjY3d0cySWVFcUE3QnpkZzBvcEZDZyJ9",
+   "second": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": false,
+    "call_signature_valid": true,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "timestamp in the future (clock aberrant)"
+   }
+  },
+  "garbage": {
+   "first": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: Invalid base64-encoded string: number of data characters (9) cannot be 1 more than a multiple of 4"
+   },
+   "header": "!!!notbase64",
+   "second": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: Invalid base64-encoded string: number of data characters (9) cannot be 1 more than a multiple of 4"
+   }
+  },
+  "missing_sig": {
+   "first": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: 'sig'"
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMiwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAiYWdlbnQtcmFnLTAxIiwgInRvb2wiOiAiZXhlY3V0ZV9zcWwiLCAiYXJndW1lbnRzX2hhc2giOiAiNjI3MmMyOWQ4ZTJkZmU4MGJiNWMxOTFkYzlmYjM4OGEzYTVlZWYxOTViMjQyYTQ3NTc0NmI5MThjZWU2ZjhlZiIsICJub25jZSI6ICIwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiIsICJ0aW1lc3RhbXAiOiAiMjAyNi0xMC0wN1QwNjo0ODo1OVoiLCAiYmlzY3VpdF9oYXNoIjogIjA3NmJiY2Y1Yzg2OWQ0N2QyYjRlMmUwZTk4ZWIwMTc3YTYzYjRhM2NmZjIxOTZhMTFkYTliYzEzZTVjNjQyMTkifX0=",
+   "second": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: 'sig'"
+   }
+  },
+  "naive_ts": {
+   "first": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: timestamp must include timezone"
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMiwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAiYWdlbnQtcmFnLTAxIiwgInRvb2wiOiAiZXhlY3V0ZV9zcWwiLCAiYXJndW1lbnRzX2hhc2giOiAiNjI3MmMyOWQ4ZTJkZmU4MGJiNWMxOTFkYzlmYjM4OGEzYTVlZWYxOTViMjQyYTQ3NTc0NmI5MThjZWU2ZjhlZiIsICJub25jZSI6ICIwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiIsICJ0aW1lc3RhbXAiOiAiMjAyNi0xMC0wN1QwNjo0ODo1OSIsICJiaXNjdWl0X2hhc2giOiAiMDc2YmJjZjVjODY5ZDQ3ZDJiNGUyZTBlOThlYjAxNzdhNjNiNGEzY2ZmMjE5NmExMWRhOWJjMTNlNWM2NDIxOSJ9LCAic2lnIjogIi0zRzd3eVFxd3lUek44Qkd0aXBEY1BkVFJ6VllUcTNwVWJZb0FsUkxsdmhJRFAtckJSaFBtaVF2bklfYWdvUzgwMDlTc1lPejN5RVlLZENrZzhQUURBIn0",
+   "second": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: timestamp must include timezone"
+   }
+  },
+  "non_ascii_nonce": {
+   "first": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: nonce must be 16\u2013128 ASCII characters"
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMiwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAiYWdlbnQtcmFnLTAxIiwgInRvb2wiOiAiZXhlY3V0ZV9zcWwiLCAiYXJndW1lbnRzX2hhc2giOiAiNjI3MmMyOWQ4ZTJkZmU4MGJiNWMxOTFkYzlmYjM4OGEzYTVlZWYxOTViMjQyYTQ3NTc0NmI5MThjZWU2ZjhlZiIsICJub25jZSI6ICJcdTAwZTlcdTAwZTlcdTAwZTlcdTAwZTlcdTAwZTlcdTAwZTlcdTAwZTlcdTAwZTlcdTAwZTlcdTAwZTlcdTAwZTlcdTAwZTlcdTAwZTlcdTAwZTlcdTAwZTlcdTAwZTlcdTAwZTlcdTAwZTlcdTAwZTlcdTAwZTkiLCAidGltZXN0YW1wIjogIjIwMjYtMTAtMDdUMDY6NDg6NTlaIiwgImJpc2N1aXRfaGFzaCI6ICIwNzZiYmNmNWM4NjlkNDdkMmI0ZTJlMGU5OGViMDE3N2E2M2I0YTNjZmYyMTk2YTExZGE5YmMxM2U1YzY0MjE5In0sICJzaWciOiAiS3ZBVXc2S0QzUWtXVVUtN2RiZXhaWm9yLVhYN08yNEl0X25SRWVzbHVlckZTUmpreVUwaTJWYl9URTRRa2o3LV9BQVhGNGhLS00zVFhvMFVHVGNXQlEifQ",
+   "second": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: nonce must be 16\u2013128 ASCII characters"
+   }
+  },
+  "not_json": {
+   "first": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: Expecting value: line 1 column 1 (char 0)"
+   },
+   "header": "aGVsbG8=",
+   "second": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: Expecting value: line 1 column 1 (char 0)"
+   }
+  },
+  "offset_ts": {
+   "first": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": true,
+    "call_signature_valid": true,
+    "capability_bound": true,
+    "nonce_expires_at": 1791355830.0,
+    "nonce_fresh": true,
+    "nonce_key": "0db7858f467c98ffd7c54f002f3f2813c99291f76a351ab5cf4a6af750c82db5",
+    "ok": true,
+    "reason": null
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMiwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAiYWdlbnQtcmFnLTAxIiwgInRvb2wiOiAiZXhlY3V0ZV9zcWwiLCAiYXJndW1lbnRzX2hhc2giOiAiNjI3MmMyOWQ4ZTJkZmU4MGJiNWMxOTFkYzlmYjM4OGEzYTVlZWYxOTViMjQyYTQ3NTc0NmI5MThjZWU2ZjhlZiIsICJub25jZSI6ICIwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiIsICJ0aW1lc3RhbXAiOiAiMjAyNi0xMC0wN1QwODo0ODo1OSswMjowMCIsICJiaXNjdWl0X2hhc2giOiAiMDc2YmJjZjVjODY5ZDQ3ZDJiNGUyZTBlOThlYjAxNzdhNjNiNGEzY2ZmMjE5NmExMWRhOWJjMTNlNWM2NDIxOSJ9LCAic2lnIjogIjhEVExBcW9WV0h5NjhSXzZvczZodHRnNWVhelpWOE1JWHVjWkNKQXJubWZGcVgxdDJYbzVFVkhPV0o2bTBhRGlCRXdtYnN5M2ZpbGV0OGVvMU55ekJRIn0",
+   "second": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": false,
+    "call_signature_valid": true,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "nonce replay or cache full"
+   }
+  },
+  "ok": {
+   "first": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": true,
+    "call_signature_valid": true,
+    "capability_bound": true,
+    "nonce_expires_at": 1791355830.0,
+    "nonce_fresh": true,
+    "nonce_key": "c00843e38e140aa87c025c72617040465610138c559a6574daf77a13b9dc2668",
+    "ok": true,
+    "reason": null
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMiwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAiYWdlbnQtcmFnLTAxIiwgInRvb2wiOiAiZXhlY3V0ZV9zcWwiLCAiYXJndW1lbnRzX2hhc2giOiAiNjI3MmMyOWQ4ZTJkZmU4MGJiNWMxOTFkYzlmYjM4OGEzYTVlZWYxOTViMjQyYTQ3NTc0NmI5MThjZWU2ZjhlZiIsICJub25jZSI6ICJkNWUyYTI5NzUxNTQzNDQyZGVjZjRkYzZmMTM5Njc0YiIsICJ0aW1lc3RhbXAiOiAiMjAyNi0xMC0wN1QwNjo0ODo1OVoiLCAiYmlzY3VpdF9oYXNoIjogIjA3NmJiY2Y1Yzg2OWQ0N2QyYjRlMmUwZTk4ZWIwMTc3YTYzYjRhM2NmZjIxOTZhMTFkYTliYzEzZTVjNjQyMTkifSwgInNpZyI6ICI2UjJoR0dEMW00OUVlaHRXMkJ6VDlnc2prbEVFVm5tZHRzaUFIYkI1OXY4S0ZhZ0NGTEROWENvbjc4U3FINVlqWkpPbE1xQl9HdHd6ZTVzMXRjZC1BQSJ9",
+   "second": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": false,
+    "call_signature_valid": true,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "nonce replay or cache full"
+   }
+  },
+  "ok_scoped_micro": {
+   "first": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": true,
+    "call_signature_valid": true,
+    "capability_bound": true,
+    "nonce_expires_at": 1791355819.876544,
+    "nonce_fresh": true,
+    "nonce_key": "995991ce3ffbdb4a123ddb68d1471471d65ff0afe6ed6a299aca8352b23fd144",
+    "ok": true,
+    "reason": null
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMiwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAiYWdlbnQtcmFnLTAxIiwgInRvb2wiOiAiZXhlY3V0ZV9zcWwiLCAiYXJndW1lbnRzX2hhc2giOiAiNjI3MmMyOWQ4ZTJkZmU4MGJiNWMxOTFkYzlmYjM4OGEzYTVlZWYxOTViMjQyYTQ3NTc0NmI5MThjZWU2ZjhlZiIsICJub25jZSI6ICIyZjE1NDliZDIxOTljMmU5OTkxZmMzZmZhNWVhYTU0YiIsICJ0aW1lc3RhbXAiOiAiMjAyNi0xMC0wN1QwNjo0ODo0OC44NzY1NDRaIiwgImJpc2N1aXRfaGFzaCI6ICIwNzZiYmNmNWM4NjlkNDdkMmI0ZTJlMGU5OGViMDE3N2E2M2I0YTNjZmYyMTk2YTExZGE5YmMxM2U1YzY0MjE5In0sICJzaWciOiAiWjFNSEN6UzJwUXRZb21uUWpabTdsbldCZlRreVpZdGoydF9wdDFydTBiM2pDN3p6Ty15dWRKTURrZTlOZXowS2xPWFpabzc1RFpOeG9qZVA4dVBsQWcifQ",
+   "second": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": false,
+    "call_signature_valid": true,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "nonce replay or cache full"
+   }
+  },
+  "other_agent_id": {
+   "first": {
+    "agent_id": "someone-else",
+    "arguments_bound": true,
+    "call_signature_valid": true,
+    "capability_bound": true,
+    "nonce_expires_at": 1791355830.0,
+    "nonce_fresh": true,
+    "nonce_key": "9f3cc4078dfd30e85da81edb83325283f770bb767f4ce81de22f871cb9c160c0",
+    "ok": true,
+    "reason": null
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMiwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAic29tZW9uZS1lbHNlIiwgInRvb2wiOiAiZXhlY3V0ZV9zcWwiLCAiYXJndW1lbnRzX2hhc2giOiAiNjI3MmMyOWQ4ZTJkZmU4MGJiNWMxOTFkYzlmYjM4OGEzYTVlZWYxOTViMjQyYTQ3NTc0NmI5MThjZWU2ZjhlZiIsICJub25jZSI6ICI3ZjY2YWQ4NTU2MjkzMTRkMDE0YzM3OTljMTViMWJkNCIsICJ0aW1lc3RhbXAiOiAiMjAyNi0xMC0wN1QwNjo0ODo1OVoiLCAiYmlzY3VpdF9oYXNoIjogIjA3NmJiY2Y1Yzg2OWQ0N2QyYjRlMmUwZTk4ZWIwMTc3YTYzYjRhM2NmZjIxOTZhMTFkYTliYzEzZTVjNjQyMTkifSwgInNpZyI6ICJhaHZSZTg3YUQxR3M4T0pmVWg3dmdicDRqdlJVRjltZlE1OTdJQUNuNXdNODNmd0xoNTVkSHg4M3lvTmplVFJMS25fbDNoSTJFRllJY0hYYWVfWWdDZyJ9",
+   "second": {
+    "agent_id": "someone-else",
+    "arguments_bound": false,
+    "call_signature_valid": true,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "nonce replay or cache full"
+   }
+  },
+  "other_args": {
+   "first": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": false,
+    "call_signature_valid": true,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "arguments_hash mismatch (tampering)"
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMiwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAiYWdlbnQtcmFnLTAxIiwgInRvb2wiOiAiZXhlY3V0ZV9zcWwiLCAiYXJndW1lbnRzX2hhc2giOiAiNzAzYjZhNzVmMWQxYWI2MjA0M2RlNzZjMjg4NzU2ZGYxMDFiZGIyZmUyNDQ0YzkxMzhhNTU5NzM0YmI3NmVmOCIsICJub25jZSI6ICJiYTQwZmQ5N2FjNTA0NjVmOTQ5Yjc2MTYyZGY3NjZlOSIsICJ0aW1lc3RhbXAiOiAiMjAyNi0xMC0wN1QwNjo0ODo1OVoiLCAiYmlzY3VpdF9oYXNoIjogIjA3NmJiY2Y1Yzg2OWQ0N2QyYjRlMmUwZTk4ZWIwMTc3YTYzYjRhM2NmZjIxOTZhMTFkYTliYzEzZTVjNjQyMTkifSwgInNpZyI6ICJlOFlMRzh3blFOMVhubUhYRFFBYlhid2kyNzFHdndVc0lpSy1WUDdtT043U2szMG1vd21wdGYyU3k2cWx2MjZnbkpxWC1OX3hINVJIUDZlR21qaVBDdyJ9",
+   "second": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": false,
+    "call_signature_valid": true,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "arguments_hash mismatch (tampering)"
+   }
+  },
+  "other_token": {
+   "first": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": false,
+    "call_signature_valid": true,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "biscuit_hash mismatch (token substitution)"
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMiwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAiYWdlbnQtcmFnLTAxIiwgInRvb2wiOiAiZXhlY3V0ZV9zcWwiLCAiYXJndW1lbnRzX2hhc2giOiAiNjI3MmMyOWQ4ZTJkZmU4MGJiNWMxOTFkYzlmYjM4OGEzYTVlZWYxOTViMjQyYTQ3NTc0NmI5MThjZWU2ZjhlZiIsICJub25jZSI6ICI1ZjE5MjQ2YWQ0MDc1ZjMwNTM1ZjhjNTQyNmZiMjRmMSIsICJ0aW1lc3RhbXAiOiAiMjAyNi0xMC0wN1QwNjo0ODo1OVoiLCAiYmlzY3VpdF9oYXNoIjogImU0NjdiMWMxOTJmOWQ2N2JhM2RmN2I5NDEyMjNkN2E2NzRlZjhlZjU0MzgxZDhkMDM4YWU2MTU1OTE5NzE4ZDEifSwgInNpZyI6ICJUMnZmbEdkZGY5a05kODRDUUVHbXVKTG5ST19LNUdlTm9IanUteUNUQ1duelBWWVQtbjFEX2Z6STdmcnlWZGxfWnZRVnpPX0JtRXNKWnotbHlmbGVBUSJ9",
+   "second": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": false,
+    "call_signature_valid": true,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "biscuit_hash mismatch (token substitution)"
+   }
+  },
+  "other_tool": {
+   "first": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": false,
+    "call_signature_valid": true,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "attestation tool mismatch"
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMiwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAiYWdlbnQtcmFnLTAxIiwgInRvb2wiOiAicmVhZF9maWxlIiwgImFyZ3VtZW50c19oYXNoIjogIjYyNzJjMjlkOGUyZGZlODBiYjVjMTkxZGM5ZmIzODhhM2E1ZWVmMTk1YjI0MmE0NzU3NDZiOTE4Y2VlNmY4ZWYiLCAibm9uY2UiOiAiZDVkNjAzMjk0NzBjNGI2OGMzZWQwNGViNTIwNzBlYjgiLCAidGltZXN0YW1wIjogIjIwMjYtMTAtMDdUMDY6NDg6NTlaIiwgImJpc2N1aXRfaGFzaCI6ICIwNzZiYmNmNWM4NjlkNDdkMmI0ZTJlMGU5OGViMDE3N2E2M2I0YTNjZmYyMTk2YTExZGE5YmMxM2U1YzY0MjE5In0sICJzaWciOiAiTFlZMDVtYjdodEZiNjZ1VmlnbUliSEJWYVdza0daSlludVNMMV9FcnllYTFxR1hXT09UR0d0cTF3aUFrQnY3S3NqbmNZSld1YU9WNXhtb3RwdmZkQ3cifQ",
+   "second": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": false,
+    "call_signature_valid": true,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "attestation tool mismatch"
+   }
+  },
+  "oversize": {
+   "first": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: attestation exceeds size limit"
+   },
+   "header": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+   "second": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: attestation exceeds size limit"
+   }
+  },
+  "padded": {
+   "first": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": true,
+    "call_signature_valid": true,
+    "capability_bound": true,
+    "nonce_expires_at": 1791355830.0,
+    "nonce_fresh": true,
+    "nonce_key": "0db7858f467c98ffd7c54f002f3f2813c99291f76a351ab5cf4a6af750c82db5",
+    "ok": true,
+    "reason": null
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMiwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAiYWdlbnQtcmFnLTAxIiwgInRvb2wiOiAiZXhlY3V0ZV9zcWwiLCAiYXJndW1lbnRzX2hhc2giOiAiNjI3MmMyOWQ4ZTJkZmU4MGJiNWMxOTFkYzlmYjM4OGEzYTVlZWYxOTViMjQyYTQ3NTc0NmI5MThjZWU2ZjhlZiIsICJub25jZSI6ICIwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiIsICJ0aW1lc3RhbXAiOiAiMjAyNi0xMC0wN1QwNjo0ODo1OVoiLCAiYmlzY3VpdF9oYXNoIjogIjA3NmJiY2Y1Yzg2OWQ0N2QyYjRlMmUwZTk4ZWIwMTc3YTYzYjRhM2NmZjIxOTZhMTFkYTliYzEzZTVjNjQyMTkifSwgInNpZyI6ICIyamlnMmZuR0x3T1ZQOVdhaVhZaFgtV1ZlbnlHdl9jWDcxQ2pMRlJ3Y0JNLU93YjAwX182OE9qQkZ4d0tDWXBvZS16NDJsQmctVGtZUGhtdkloUVRDUT09In0=",
+   "second": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": false,
+    "call_signature_valid": true,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "nonce replay or cache full"
+   }
+  },
+  "payload_list": {
+   "first": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: payload must be an object"
+   },
+   "header": "eyJwYXlsb2FkIjogWzFdLCAic2lnIjogIiJ9",
+   "second": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: payload must be an object"
+   }
+  },
+  "short_nonce": {
+   "first": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: nonce must be 16\u2013128 ASCII characters"
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMiwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAiYWdlbnQtcmFnLTAxIiwgInRvb2wiOiAiZXhlY3V0ZV9zcWwiLCAiYXJndW1lbnRzX2hhc2giOiAiNjI3MmMyOWQ4ZTJkZmU4MGJiNWMxOTFkYzlmYjM4OGEzYTVlZWYxOTViMjQyYTQ3NTc0NmI5MThjZWU2ZjhlZiIsICJub25jZSI6ICJhYmMiLCAidGltZXN0YW1wIjogIjIwMjYtMTAtMDdUMDY6NDg6NTlaIiwgImJpc2N1aXRfaGFzaCI6ICIwNzZiYmNmNWM4NjlkNDdkMmI0ZTJlMGU5OGViMDE3N2E2M2I0YTNjZmYyMTk2YTExZGE5YmMxM2U1YzY0MjE5In0sICJzaWciOiAiMlV6ZzlORzB3X0I1T1FSZnhuMnlxYWFRa2dCc18xdzRSNkpkdjhqM1Z1U2FLd3dBN2V5WnA2b1hoaERPOHk1VGFPd0k1LXpGYVVtZnBNaFM0bmpvQ2cifQ",
+   "second": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: nonce must be 16\u2013128 ASCII characters"
+   }
+  },
+  "skew_edge_stale": {
+   "first": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": true,
+    "call_signature_valid": true,
+    "capability_bound": true,
+    "nonce_expires_at": 1791355741.0,
+    "nonce_fresh": true,
+    "nonce_key": "ead46caffaf4b4f29b70f167904ab3a7212c53cef84e6f15ccd3663e50c318a7",
+    "ok": true,
+    "reason": null
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMiwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAiYWdlbnQtcmFnLTAxIiwgInRvb2wiOiAiZXhlY3V0ZV9zcWwiLCAiYXJndW1lbnRzX2hhc2giOiAiNjI3MmMyOWQ4ZTJkZmU4MGJiNWMxOTFkYzlmYjM4OGEzYTVlZWYxOTViMjQyYTQ3NTc0NmI5MThjZWU2ZjhlZiIsICJub25jZSI6ICJkNzU1ZmYyOTE2NTI1NDQ5YThlNmMyZTExZWU3NGI5OSIsICJ0aW1lc3RhbXAiOiAiMjAyNi0xMC0wN1QwNjo0NzozMFoiLCAiYmlzY3VpdF9oYXNoIjogIjA3NmJiY2Y1Yzg2OWQ0N2QyYjRlMmUwZTk4ZWIwMTc3YTYzYjRhM2NmZjIxOTZhMTFkYTliYzEzZTVjNjQyMTkifSwgInNpZyI6ICJjRHdnRU9lLVBMN3dHZ3phZWRhUENJSWZrUzVETmRJMGtETVljWDBtOVNNSTgwcXJwQWREZmdVdDRUVG5PN0VOdVZNWkJ2NmhIQlNyX0FVaTFWallDUSJ9",
+   "second": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": false,
+    "call_signature_valid": true,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "nonce replay or cache full"
+   }
+  },
+  "skew_ok_future": {
+   "first": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": true,
+    "call_signature_valid": true,
+    "capability_bound": true,
+    "nonce_expires_at": 1791355850.0,
+    "nonce_fresh": true,
+    "nonce_key": "f7ba8dc9489a5e5e836cdd573ddecb168f08eeaafe04f7043ab9b6a27174c997",
+    "ok": true,
+    "reason": null
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMiwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAiYWdlbnQtcmFnLTAxIiwgInRvb2wiOiAiZXhlY3V0ZV9zcWwiLCAiYXJndW1lbnRzX2hhc2giOiAiNjI3MmMyOWQ4ZTJkZmU4MGJiNWMxOTFkYzlmYjM4OGEzYTVlZWYxOTViMjQyYTQ3NTc0NmI5MThjZWU2ZjhlZiIsICJub25jZSI6ICJlMzgyMTg3ZWQyZTNiNjk2ZDZiOWJjMWVlMmU1ZGE3MyIsICJ0aW1lc3RhbXAiOiAiMjAyNi0xMC0wN1QwNjo0OToxOVoiLCAiYmlzY3VpdF9oYXNoIjogIjA3NmJiY2Y1Yzg2OWQ0N2QyYjRlMmUwZTk4ZWIwMTc3YTYzYjRhM2NmZjIxOTZhMTFkYTliYzEzZTVjNjQyMTkifSwgInNpZyI6ICJ0NmhOOHhyQ0VBZVJjcm10QXo1aUVBQlpmdnJfNTRvYWpVNmpLOE5OUVh5RkUybWxhRlY3dWlSTmJmdjJZYnRGY2Fpc0hmN1NYcmpaT3VSOXBueHhBUSJ9",
+   "second": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": false,
+    "call_signature_valid": true,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "nonce replay or cache full"
+   }
+  },
+  "stale": {
+   "first": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": false,
+    "call_signature_valid": true,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "attestation stale"
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMiwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAiYWdlbnQtcmFnLTAxIiwgInRvb2wiOiAiZXhlY3V0ZV9zcWwiLCAiYXJndW1lbnRzX2hhc2giOiAiNjI3MmMyOWQ4ZTJkZmU4MGJiNWMxOTFkYzlmYjM4OGEzYTVlZWYxOTViMjQyYTQ3NTc0NmI5MThjZWU2ZjhlZiIsICJub25jZSI6ICJjNzZmZDY4ZDlkNDhhZTM2ZDc2MjM1MDJlNWRlZGE1OSIsICJ0aW1lc3RhbXAiOiAiMjAyNi0xMC0wN1QwNjo0NTozOVoiLCAiYmlzY3VpdF9oYXNoIjogIjA3NmJiY2Y1Yzg2OWQ0N2QyYjRlMmUwZTk4ZWIwMTc3YTYzYjRhM2NmZjIxOTZhMTFkYTliYzEzZTVjNjQyMTkifSwgInNpZyI6ICJrSm92N2lBZTFsNUdpbzAxZmROODFfWG95ZHRwM2E5Z2x1QWk4NnNjalI1S2pNb0hhQWlIR0NJakZNWXgzWTNzeE9ubzh5VHkyQjVrWld1TXRQclBCdyJ9",
+   "second": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": false,
+    "call_signature_valid": true,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "attestation stale"
+   }
+  },
+  "v1": {
+   "first": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: unsupported attestation version/domain; regenerate with client-wrap"
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMSwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAiYWdlbnQtcmFnLTAxIiwgInRvb2wiOiAiZXhlY3V0ZV9zcWwiLCAiYXJndW1lbnRzX2hhc2giOiAiNjI3MmMyOWQ4ZTJkZmU4MGJiNWMxOTFkYzlmYjM4OGEzYTVlZWYxOTViMjQyYTQ3NTc0NmI5MThjZWU2ZjhlZiIsICJub25jZSI6ICIwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiIsICJ0aW1lc3RhbXAiOiAiMjAyNi0xMC0wN1QwNjo0ODo1OVoiLCAiYmlzY3VpdF9oYXNoIjogIjA3NmJiY2Y1Yzg2OWQ0N2QyYjRlMmUwZTk4ZWIwMTc3YTYzYjRhM2NmZjIxOTZhMTFkYTliYzEzZTVjNjQyMTkifSwgInNpZyI6ICJPRzdpendvR29vaHNmZXJUR3lDRVdrSVRRcFducWlBX2hlTWZwdGpQVkVEd1NmTzlEcGE1MUw4U3lJMXJzcE9FRHN4QWg1b1Y4X0RRLVBNYU0wQ3lBUSJ9",
+   "second": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: unsupported attestation version/domain; regenerate with client-wrap"
+   }
+  },
+  "wrong_domain": {
+   "first": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: unsupported attestation version/domain; regenerate with client-wrap"
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMiwgImRvbWFpbiI6ICJ4IiwgImFnZW50X2lkIjogImFnZW50LXJhZy0wMSIsICJ0b29sIjogImV4ZWN1dGVfc3FsIiwgImFyZ3VtZW50c19oYXNoIjogIjYyNzJjMjlkOGUyZGZlODBiYjVjMTkxZGM5ZmIzODhhM2E1ZWVmMTk1YjI0MmE0NzU3NDZiOTE4Y2VlNmY4ZWYiLCAibm9uY2UiOiAiMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWYiLCAidGltZXN0YW1wIjogIjIwMjYtMTAtMDdUMDY6NDg6NTlaIiwgImJpc2N1aXRfaGFzaCI6ICIwNzZiYmNmNWM4NjlkNDdkMmI0ZTJlMGU5OGViMDE3N2E2M2I0YTNjZmYyMTk2YTExZGE5YmMxM2U1YzY0MjE5In0sICJzaWciOiAiNG5wbUxJU0xHZVVzQnJWemhXN2FWZjZfR1A3ZnlKWkZUeTdldG9vdkdvU1o4b1E3Z0lPZ2VSZ3ozTzkycEZUQzVuMVFoa2hjUFhDQkxvLV9OTGFqQ2cifQ",
+   "second": {
+    "agent_id": null,
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "malformed attestation: unsupported attestation version/domain; regenerate with client-wrap"
+   }
+  },
+  "wrong_signer": {
+   "first": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "attestation signature invalid: "
+   },
+   "header": "eyJwYXlsb2FkIjogeyJ2ZXJzaW9uIjogMiwgImRvbWFpbiI6ICJiaXNjdWl0bWNwL3Rvb2xzLWNhbGwiLCAiYWdlbnRfaWQiOiAiYWdlbnQtcmFnLTAxIiwgInRvb2wiOiAiZXhlY3V0ZV9zcWwiLCAiYXJndW1lbnRzX2hhc2giOiAiNjI3MmMyOWQ4ZTJkZmU4MGJiNWMxOTFkYzlmYjM4OGEzYTVlZWYxOTViMjQyYTQ3NTc0NmI5MThjZWU2ZjhlZiIsICJub25jZSI6ICIzZTRmOTk0YWY3OGRiNGNmZDFkODZhMzBmNTM5NmY1MCIsICJ0aW1lc3RhbXAiOiAiMjAyNi0xMC0wN1QwNjo0ODo1OVoiLCAiYmlzY3VpdF9oYXNoIjogIjA3NmJiY2Y1Yzg2OWQ0N2QyYjRlMmUwZTk4ZWIwMTc3YTYzYjRhM2NmZjIxOTZhMTFkYTliYzEzZTVjNjQyMTkifSwgInNpZyI6ICItY25lWDJaZFh2RUIxSFdXTlRuX0pkNVV6SzNhdnBlckF4R1pQeE50NTVLZXBGS3J4Ym5zZGExRzFWWUczSWIyQTBhbmtlQlBzT0hpcEVRNERtajZDQSJ9",
+   "second": {
+    "agent_id": "agent-rag-01",
+    "arguments_bound": false,
+    "call_signature_valid": false,
+    "capability_bound": false,
+    "nonce_expires_at": null,
+    "nonce_fresh": false,
+    "nonce_key": null,
+    "ok": false,
+    "reason": "attestation signature invalid: "
+   }
+  }
+ },
+ "t0": "2026-10-07T06:48:59+00:00"
+}

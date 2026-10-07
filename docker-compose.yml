@@ -1,0 +1,41 @@
+# Provide an existing upstream and provision the files described in docs/deployment.md.
+services:
+  proxy:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+    image: tokencrumb-mcp-proxy:local
+    command:
+      - serve
+      - --upstream
+      - ${UPSTREAM_URL:?Set UPSTREAM_URL to the upstream MCP endpoint}
+      - --authority-pub
+      - /config/authority.pub
+      - --policy
+      - /config/policy.yaml
+      - --audience
+      - ${TOKENCRUMB_AUDIENCE:-local-gateway}
+      - --audit-key
+      - /config/audit.key
+      - --audit
+      - /data/audit.log
+      - --budget-state
+      - /data/budget.json
+      - --listen
+      - 0.0.0.0:9443
+      - --tls-cert
+      - /config/tls.crt
+      - --tls-key
+      - /config/tls.key
+    ports:
+      - "127.0.0.1:9443:9443"
+    volumes:
+      - ${TOKENCRUMB_CONFIG_DIR:-./state/config}:/config:ro
+      - proxy-data:/data
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp]
+    restart: unless-stopped
+volumes:
+  proxy-data:

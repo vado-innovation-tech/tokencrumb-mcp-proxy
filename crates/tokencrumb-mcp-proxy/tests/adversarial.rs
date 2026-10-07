@@ -6,17 +6,17 @@ mod common;
 
 use std::sync::Arc;
 
+use chrono::{DateTime, TimeDelta, Utc};
+use common::proxy::{
+    World, append_block, biscuit_headers, forge, mandate, options, str_term, test_policy, verify,
+};
+use serde_json::{Value, json};
 use tokencrumb_mcp_proxy::attestation::build_attestation;
 use tokencrumb_mcp_proxy::biscuit_ops::{ForgeRequest, capability_key};
 use tokencrumb_mcp_proxy::keys::{Keypair, generate_keypair};
 use tokencrumb_mcp_proxy::nonce_cache::{NonceCache, NonceStore};
 use tokencrumb_mcp_proxy::revocation::{RevocationList, sign_revocation_list};
 use tokencrumb_mcp_proxy::verifier::{Verifier, VerifierOptions};
-use chrono::{DateTime, TimeDelta, Utc};
-use common::proxy::{
-    World, append_block, biscuit_headers, forge, mandate, options, str_term, test_policy, verify,
-};
-use serde_json::{Value, json};
 
 fn args() -> Value {
     json!({"schema": "analytics", "query": "select 1"})
@@ -51,10 +51,10 @@ fn with_clock(
     w.verifier(test_policy(), Some(opts))
 }
 
-/// A native read mandate over `/projets/acme/`.
+/// A native read mandate over `/projects/acme/`.
 fn read_scope(ttl_seconds: i128) -> ForgeRequest {
     ForgeRequest {
-        resource_prefix: Some("/projets/acme/".into()),
+        resource_prefix: Some("/projects/acme/".into()),
         ..mandate("a", "read_file", "read", ttl_seconds, 10)
     }
 }
@@ -188,7 +188,7 @@ fn wrong_authority_signature_denied() {
     let d = verify(
         &verifier(&w),
         "read_file",
-        json!({"path": "/projets/acme/q3.md"}),
+        json!({"path": "/projects/acme/q3.md"}),
         &biscuit_headers(&forged, None),
     );
     assert!(!d.allow && d.reason.contains("signature"), "{}", d.reason);
@@ -200,7 +200,7 @@ fn corrupted_token_denied() {
     let d = verify(
         &verifier(&w),
         "read_file",
-        json!({"path": "/projets/acme/q3.md"}),
+        json!({"path": "/projects/acme/q3.md"}),
         &biscuit_headers("not-a-real-biscuit", None),
     );
     assert!(
@@ -218,7 +218,7 @@ fn expired_token_denied() {
     let d = verify(
         &v,
         "read_file",
-        json!({"path": "/projets/acme/q3.md"}),
+        json!({"path": "/projects/acme/q3.md"}),
         &biscuit_headers(&expired, None),
     );
     assert!(!d.allow && d.reason.contains("expired"), "{}", d.reason);
@@ -245,7 +245,7 @@ fn revoked_token_denied() {
     let d = verify(
         &w.verifier(test_policy(), Some(opts)),
         "read_file",
-        json!({"path": "/projets/acme/q3.md"}),
+        json!({"path": "/projects/acme/q3.md"}),
         &biscuit_headers(&token, None),
     );
     assert!(!d.allow);
@@ -259,7 +259,7 @@ fn path_traversal_denied() {
     let d = verify(
         &verifier(&w),
         "read_file",
-        json!({"path": "/projets/acme/../globex/secret"}),
+        json!({"path": "/projects/acme/../globex/secret"}),
         &h,
     );
     assert!(!d.allow && d.reason.contains("resource"), "{}", d.reason);
@@ -267,7 +267,7 @@ fn path_traversal_denied() {
         verify(
             &verifier(&w),
             "read_file",
-            json!({"path": "/projets/acme/safe"}),
+            json!({"path": "/projects/acme/safe"}),
             &h
         )
         .allow
@@ -281,8 +281,12 @@ fn nonce_cache_full_fails_closed() {
     let full = NonceCache::new(1, 120, None).unwrap();
     // fresh, not expired
     assert!(
-        full.check_and_add("occupied", tokencrumb_mcp_proxy::isotime::timestamp(&fixed), None)
-            .unwrap()
+        full.check_and_add(
+            "occupied",
+            tokencrumb_mcp_proxy::isotime::timestamp(&fixed),
+            None
+        )
+        .unwrap()
     );
     let mut opts = VerifierOptions::new(common::proxy::TEST_AUDIENCE);
     opts.nonce_cache = Some(Arc::new(full));
@@ -359,7 +363,10 @@ fn quote_injection_cannot_fabricate_an_identity() {
         .unwrap();
     // The rendering really is ambiguous: the fabricated fact shows up in block 0.
     assert!(
-        tokencrumb_mcp_proxy::biscuit_ops::inspect(&token).unwrap().blocks[0].contains("user(\"alice\")")
+        tokencrumb_mcp_proxy::biscuit_ops::inspect(&token)
+            .unwrap()
+            .blocks[0]
+            .contains("user(\"alice\")")
     );
 
     let policy = tokencrumb_mcp_proxy::policy::parse_policy(&serde_json::json!({
@@ -372,8 +379,10 @@ fn quote_injection_cannot_fabricate_an_identity() {
         tokencrumb_mcp_proxy::verifier::VerifierOptions::new("test-gw"),
     )
     .unwrap();
-    let headers =
-        tokencrumb_mcp_proxy::verifier::Headers::new([("authorization", format!("Biscuit {token}"))]);
+    let headers = tokencrumb_mcp_proxy::verifier::Headers::new([(
+        "authorization",
+        format!("Biscuit {token}"),
+    )]);
     let decision = verifier
         .verify_call("read_file", &serde_json::json!({}), &headers, None, None)
         .unwrap();

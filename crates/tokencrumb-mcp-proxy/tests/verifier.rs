@@ -4,10 +4,10 @@
 
 mod common;
 
-use tokencrumb_mcp_proxy::attestation::build_attestation;
-use tokencrumb_mcp_proxy::biscuit_ops::ForgeRequest;
 use common::proxy::{World, biscuit_headers, forge, mandate, options, test_policy, verify};
 use serde_json::json;
+use tokencrumb_mcp_proxy::attestation::build_attestation;
+use tokencrumb_mcp_proxy::biscuit_ops::ForgeRequest;
 
 #[test]
 fn profile1_allow_in_scope() {
@@ -15,7 +15,7 @@ fn profile1_allow_in_scope() {
     let d = verify(
         &w.verifier(test_policy(), None),
         "read_file",
-        json!({"path": "/projets/acme/q3.md"}),
+        json!({"path": "/projects/acme/q3.md"}),
         &biscuit_headers(&w.native_token(), None),
     );
     assert!(d.allow);
@@ -65,7 +65,7 @@ fn budget_exhaustion() {
     let token = forge(
         &w.authority.private_str,
         ForgeRequest {
-            resource_prefix: Some("/projets/acme/".into()),
+            resource_prefix: Some("/projects/acme/".into()),
             ..mandate("a", "read_file", "read", 3600, 3)
         },
     );
@@ -76,7 +76,7 @@ fn budget_exhaustion() {
             verify(
                 &v,
                 "read_file",
-                json!({"path": "/projets/acme/q3.md"}),
+                json!({"path": "/projects/acme/q3.md"}),
                 &headers,
             )
             .allow

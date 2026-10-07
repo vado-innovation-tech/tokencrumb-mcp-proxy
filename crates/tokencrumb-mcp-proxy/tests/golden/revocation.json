@@ -1,0 +1,24 @@
+{
+ "doc": {
+  "domain": "34750f98bd59fcfc",
+  "issued_at": 1791355739,
+  "next_update": 1791359339,
+  "revoked": [
+   "a",
+   "b"
+  ],
+  "seq": 7,
+  "sig": "SxT5/dgkwMaHfxXAS7eEgMRNwiBJ5GDB1A0Wg5zz82IE4B6qIwvEpO33lRqh4lCXtClewEH0LaST86zUvZzzBw==",
+  "version": 1
+ },
+ "legacy": {
+  "revoked": [
+   "x",
+   "y"
+  ],
+  "sig": "3ByqJWhvkPNI2ZQGS7tE5MnxG3JcZkWVz71og4YeuLcKL6EkOgZ2TE4ZCHPPKedrzHuzFMNpZU5xPZhNeMAgCw=="
+ },
+ "legacy_public": "ed25519/8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394",
+ "now": 1791355739,
+ "public": "ed25519/8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c"
+}
