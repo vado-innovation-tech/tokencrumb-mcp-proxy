@@ -425,7 +425,7 @@ Report vulnerabilities through the process [below](#reporting-vulnerabilities).
 
 ## Reporting vulnerabilities
 
-If the repository offers **Security → Report a vulnerability**, use it to report suspected vulnerabilities privately. Otherwise, contact a maintainer through an established private channel. If you have no private contact, request a reporting channel without publishing vulnerability details. Do not include exploit details, credentials or operational tokens in a public issue.
+Report suspected vulnerabilities privately to [als0m3@proton.me](mailto:als0m3@proton.me). If the repository offers **Security → Report a vulnerability**, you may also use that channel. Do not include exploit details, credentials or operational tokens in a public issue.
 
 Include the affected commit, configuration, expected and actual behavior, and a minimal reproducer with synthetic keys and data. Security fixes target the current development branch; no long-term support or response-time commitment is offered for older revisions.
 
@@ -514,6 +514,8 @@ gitleaks git --log-opts="--all" --redact
 The library tests cover parsing, signatures, attenuation, revocation, replay protection, budgets and canonicalization. Integration tests cover CLI behavior, actual HTTP transports, state recovery and issuer interoperability. Fixed independent reference fixtures provide compatibility checks; do not regenerate expected cryptographic output from the implementation under test to make a failure disappear.
 
 Use `cargo fmt --check` to check workspace members. Avoid `--all` while the custom Biscuit snapshot is present: it also formats local path dependencies and would rewrite preserved upstream source.
+
+GitHub Actions are pinned to full commit SHAs in the CI workflow. Review upstream changes before updating a pin and keep its version comment accurate. Toolchain selectors such as Rust `stable` remain intentional moving targets for compatibility testing.
 
 ### Secret scanning
 

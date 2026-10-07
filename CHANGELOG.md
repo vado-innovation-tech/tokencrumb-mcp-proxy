@@ -8,6 +8,7 @@
 - Accept a Biscuit embedded in an OIDC access-token response during bootstrap, verifying the Biscuit against a separately provisioned authority key. The enclosing JWT is not authenticated by this command.
 - Support repeated `attenuate --tool` restrictions and trusted tool-name facts during authorization.
 - Add HTTP and native HTTPS smoke checks, dependency auditing, and secret scanning in CI, including detection of the project's plaintext private-key format.
+- Document a direct email contact for private vulnerability reports.
 
 ### Changed
 
@@ -23,6 +24,7 @@
 
 - Update the resolved `time` dependency from 0.3.45 to 0.3.55 and `axum-server` from 0.7.3 to 0.8.0 to address dependency audit findings; remove `rustls-pemfile` from the resolved dependencies.
 - Remove unused direct dependencies and update CI actions.
+- Pin every GitHub Action to a full commit SHA, retaining its original version or branch as a comment.
 
 ## 0.3.0
 
