@@ -36,6 +36,7 @@ flowchart LR
 - [Compatibility and test fixtures](#compatibility-and-test-fixtures)
 - [Temporary Biscuit dependency](#temporary-biscuit-dependency)
 - [Development and contributions](#development-and-contributions)
+- [Funding](#funding)
 - [License](#license)
 
 Release history is maintained in [CHANGELOG.md](CHANGELOG.md).
@@ -536,6 +537,23 @@ Read the [patch scope, provenance and removal procedure](#temporary-biscuit-depe
 Build and install from the full checkout with `cargo install --locked --path crates/tokencrumb-mcp-proxy`, or build the provided container. Source archives must include the `vendor/` directory.
 
 Registry publication is temporarily disabled with `publish = false`. `cargo package` cannot produce a usable standalone registry package while the custom dependency exists only in this checkout; substituting the unpatched upstream crate would break the build. Restore registry packaging only after [returning to an official Biscuit release](#return-to-the-official-release). A successful local build is not permission to publish a package or change repository visibility.
+
+## Funding
+
+<p>
+  <img src="docs/assets/funding/france2030.png" alt="France 2030" height="56">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/funding/nextgenerationeu-dark.png">
+    <img src="docs/assets/funding/nextgenerationeu.png" alt="Financé par l'Union européenne – NextGenerationEU" height="56">
+  </picture>
+  <img src="docs/assets/funding/capdigital.png" alt="Cap Digital" height="56">
+</p>
+
+Ce projet a été financé par le Gouvernement dans le cadre du plan France 2030
+opéré par Cap Digital et financé par l'Union européenne – NextGeneration EU.
+
+This project was funded by the French Government as part of the France 2030
+plan operated by Cap Digital, and by the European Union – NextGenerationEU.
 
 ## License
 
