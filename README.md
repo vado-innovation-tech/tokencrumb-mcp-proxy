@@ -354,7 +354,7 @@ Retain signed audit checkpoints independently. Back up keys and state with acces
 
 Use a tested commit or an immutable digest of an image you built. Validate configuration before replacing it with `policy-install`. Test authority and audit key rotation using the explicit previous-key options before removing an old trust anchor. Restart for changes to upstream topology or certificates.
 
-CI builds and tests images without publishing them. Repository or package visibility changes are separate administrative actions.
+CI builds and tests images without publishing them.
 
 ## Architecture
 
@@ -536,7 +536,7 @@ Read the [patch scope, provenance and removal procedure](#temporary-biscuit-depe
 
 Build and install from the full checkout with `cargo install --locked --path crates/tokencrumb-mcp-proxy`, or build the provided container. Source archives must include the `vendor/` directory.
 
-Registry publication is temporarily disabled with `publish = false`. `cargo package` cannot produce a usable standalone registry package while the custom dependency exists only in this checkout; substituting the unpatched upstream crate would break the build. Restore registry packaging only after [returning to an official Biscuit release](#return-to-the-official-release). A successful local build is not permission to publish a package or change repository visibility.
+Registry publication is temporarily disabled with `publish = false`. `cargo package` cannot produce a usable standalone registry package while the custom dependency exists only in this checkout; substituting the unpatched upstream crate would break the build. Restore registry packaging only after [returning to an official Biscuit release](#return-to-the-official-release).
 
 ## Funding
 
