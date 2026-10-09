@@ -14,6 +14,7 @@ RUN apt-get update \
     && mkdir /data && chown 10001:10001 /data
 COPY --from=build /src/target/release/tokencrumb /usr/local/bin/tokencrumb
 COPY LICENSE /usr/share/doc/tokencrumb/LICENSE
+COPY NOTICE /usr/share/doc/tokencrumb/NOTICE
 COPY vendor/biscuit-auth/LICENSE /usr/share/doc/tokencrumb/biscuit-auth/LICENSE
 COPY vendor/biscuit-auth/README.md /usr/share/doc/tokencrumb/biscuit-auth/README.md
 USER 10001

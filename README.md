@@ -539,4 +539,4 @@ Registry publication is temporarily disabled with `publish = false`. `cargo pack
 
 ## License
 
-[Apache-2.0](LICENSE). Copyright and attribution remain with their respective holders. The vendored Biscuit source retains its [upstream license](vendor/biscuit-auth/LICENSE) and [provenance notice](vendor/biscuit-auth/README.md).
+[Apache-2.0](LICENSE). Copyright 2026 Vado Innovation; see [NOTICE](NOTICE). Third-party copyright and attribution remain with their respective holders. The vendored Biscuit source retains its [upstream license](vendor/biscuit-auth/LICENSE) and [provenance notice](vendor/biscuit-auth/README.md).

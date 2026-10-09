@@ -1,0 +1,6 @@
+TokenCrumb - MCP Proxy
+Copyright 2026 Vado Innovation
+
+This product includes a modified copy of biscuit-auth 6.0.0
+(Eclipse Biscuit, Apache-2.0) in vendor/biscuit-auth.
+See vendor/biscuit-auth/README.md for provenance and changes.
