@@ -425,9 +425,9 @@ Report vulnerabilities through the process [below](#reporting-vulnerabilities).
 
 ## Reporting vulnerabilities
 
-Report suspected vulnerabilities privately to [als0m3@proton.me](mailto:als0m3@proton.me). If the repository offers **Security → Report a vulnerability**, you may also use that channel. Do not include exploit details, credentials or operational tokens in a public issue.
+Report suspected vulnerabilities privately through GitHub: **Security → Report a vulnerability** on this repository. If you cannot use it, email [security@tokencrumb.ai](mailto:security@tokencrumb.ai). Do not include exploit details, credentials or operational tokens in a public issue.
 
-Include the affected commit, configuration, expected and actual behavior, and a minimal reproducer with synthetic keys and data. Security fixes target the current development branch; no long-term support or response-time commitment is offered for older revisions.
+Include the affected version or commit, configuration, expected and actual behavior, and a minimal reproducer with synthetic keys and data. Security fixes target the latest release and the `main` branch; older revisions receive no long-term support. We aim to acknowledge reports within a week (best effort). See [SECURITY.md](SECURITY.md).
 
 ## Compatibility and test fixtures
 
