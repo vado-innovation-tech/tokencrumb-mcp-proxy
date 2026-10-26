@@ -17,6 +17,7 @@ flowchart LR
 
 - Tool and resource restrictions, expiry, audience binding and delegation limits.
 - Offline attenuation of tools, resources, lifetime, upstream and call budget.
+- Third-party authorities: tools that also need an endorsement signed by a second key.
 - Agent key binding, argument binding and persistent replay protection.
 - Multiple upstreams, with a separate MCP endpoint for each.
 - Persistent budgets, signed revocation lists and verifiable audit logs.
@@ -232,6 +233,42 @@ For identity-bound forwarding, `--upstream-user-credentials` takes the **path to
 
 Add `--upstream-user-credentials state/upstream-users.json` to `serve` and provision the referenced environment variable before starting the process. The environment variable holds the complete header value. The proxy selects it only for the verified issuer and subject. It does not turn delegation into upstream entitlement or automatically exchange upstream credentials.
 
+### Third-party authorities
+
+A tool can require an endorsement from a second authority, such as an approval service, in addition to the root grant. The endorsement is a Biscuit third-party block: the holder sends a request bound to the token's last signature, the third party signs a block without seeing the token, and the holder appends it. The block cannot be moved to another token.
+
+```yaml
+third_party:
+  approver:
+    keys: [ed25519/<current key>, ed25519/<previous key>]
+    predicates: [approval]
+tools:
+  - name: delete_file
+    operation: write
+    resource:
+      from: arguments.path
+    require_third_party:
+      - authority: approver
+        predicate: approval
+```
+
+The gateway reads an endorsement only for the tools that require it, as `approval(tool, resource_prefix, expires_at)` from blocks signed by one of the authority's keys (a `trusting` check). The call must use that tool, the endorsement must not have expired, and the call's resource must start with the prefix; an empty prefix endorses only calls without a resource. The same fact in the authority block or in a holder-appended block is ignored, and an endorsement never replaces the root `right`.
+
+A block signed by an undeclared key refuses the whole mandate. A third-party block may contain only facts of its delegated predicates, bound facts (`budget_cap`, `expires_at`, `max_delegation_depth`, where the tightest still wins) and checks, which can only restrict. Rules, identity facts and call-context facts are refused. Predicates the gateway injects or governs, proof facts and `right` cannot be delegated, and a third-party key cannot also be a root authority key. A mandate carries at most eight third-party blocks; they do not count toward `max_delegation_depth`. The audit entry records the endorsing authorities under `detail.third_party`, and a denial names the missing endorsement.
+
+```sh
+tokencrumb keygen --type third-party --out state/approver
+tokencrumb third-party-request --token state/capability.b64 \
+  --authority-pub state/authority.pub --out state/request.b64
+tokencrumb third-party-sign --key state/approver.key --request state/request.b64 \
+  --tool read_file --resource-prefix /workspace/ --ttl 5m --out state/endorsement.b64
+tokencrumb third-party-append --token state/capability.b64 \
+  --authority-pub state/authority.pub --block state/endorsement.b64 \
+  --third-party-pub state/approver.pub --out state/endorsed.b64
+```
+
+`revoke --from-token <token> --block <index>` revokes a single endorsement; the rest of the mandate stays valid and can be endorsed again.
+
 ### Reload and revocation
 
 Enable `--reload-policy` and publish validated updates atomically:
@@ -248,10 +285,13 @@ Run `tokencrumb --help` or `tokencrumb <command> --help` for all flags. Usage er
 
 | Command | Purpose |
 | --- | --- |
-| `keygen` | Generate authority, agent or audit Ed25519 keys. |
+| `keygen` | Generate authority, agent, audit or third-party Ed25519 keys. |
 | `forge` | Sign an authority capability for a tool, with audience, expiry and optional scope. |
 | `attenuate` | Append restrictions without the authority private key. |
-| `inspect` | Decode blocks and metadata without establishing trust. |
+| `inspect` | Decode blocks and metadata without establishing trust; `--json` for tools. |
+| `third-party-request` | Print the endorsement request bound to a token. |
+| `third-party-sign` | Sign an endorsement block for a request, as a third-party authority. |
+| `third-party-append` | Append a signed endorsement block and check its signer. |
 | `serve` | Run the authorization proxy. |
 | `client-wrap` | Adapt a stdio MCP client to the proxy and sign tool calls. |
 | `bootstrap` | Validate an issuer URL or verify a returned token against a provisioned trust anchor. |
@@ -285,7 +325,7 @@ tokencrumb revoke --key state/authority.key \
   --from-token state/capability.b64 --out state/revoked.list
 ```
 
-`--from-token` revokes the root capability family, including attenuated descendants. Set the policy's `revocation` path to this file. Revocation must be distributed to each verifier. Signed snapshots expire; refresh and distribute them before `next_update`. Repeating `revoke` with an already revoked token republishes the list with a new sequence and freshness window. Multiple accepted authority keys do not imply multiple required signers.
+`--from-token` revokes the root capability family, including attenuated descendants; add `--block <index>` to revoke only one block, such as a [third-party endorsement](#third-party-authorities). Set the policy's `revocation` path to this file. Revocation must be distributed to each verifier. Signed snapshots expire; refresh and distribute them before `next_update`. Repeating `revoke` with an already revoked token republishes the list with a new sequence and freshness window. Multiple accepted authority keys do not imply multiple required signers.
 
 ### Registry-backed profile
 
@@ -366,6 +406,8 @@ The issuer signs the authority block of a Biscuit capability. Holders can append
 
 The authority public key is the trust anchor. An issuer name is signed metadata, not a replacement for a trusted key. Governed identity fields are accepted only from the authority block. Appended blocks cannot substitute an agent key, audience or issuer identity.
 
+Third-party authorities are a second, narrower kind of trust anchor: their keys are declared in the policy with the predicates each may state, and the proxy reads those predicates only from blocks carrying a valid external signature by one of those keys. They can endorse a call the root authority already granted; they cannot grant one.
+
 ### Verification
 
 The implementation performs bounded token parsing and signature verification, validates governed metadata and expiry, checks the required profile, validates call attestations where required, canonicalizes resources and arguments, evaluates Datalog checks and policy, and atomically charges the applicable budget. Errors fail closed in enforcement mode.
@@ -402,6 +444,7 @@ The default policy requires `hardened_biscuit_anchored`. A stolen capability alo
 | Replayed or modified call | Signature, nonce, timestamp, argument and token binding | `verifier`, `security_lifecycle` |
 | Token for another deployment or route | Audience and upstream checks | `audience_upstream`, `multi_upstream` |
 | Broader delegation | Append-only restrictions and tightest signed bounds | `delegation_depth`, `tool_attenuation` |
+| Forged, replayed or overreaching endorsement | External signature bound to the token, declared keys, delegated predicates, `trusting` checks | `third_party` |
 | Budget reset after attenuation or restart | Root-based counters and durable state | `budget_two_level`, `budget_persist`, `one_shot` |
 | Policy or parser confusion | Strict JSON/YAML, typed metadata and bounded Datalog | `security_configuration`, `security_contract`, `datalog_limits` |
 | Hidden protocol route | Explicit MCP method handling | `proxy_router`, `security_http_audit` |
@@ -413,6 +456,7 @@ These tests establish specific local behaviors, not a certification of any deplo
 
 - An operator controlling the host can change policy, keys, code, clock or persistent state. Cryptography does not make that operator untrusted by default.
 - An issuer holding a trusted authority private key can issue new capabilities. Accepting several roots means any accepted root can authorize; it is not a quorum.
+- A third-party authority decides only what it signs. The proxy checks the endorsement's tool, resource prefix and expiry, not how the third party reached its decision; protect its private key like an authority key.
 - An agent with valid keys can abuse any operation actually granted to it. The proxy does not make model output truthful or prevent prompt injection from selecting an allowed tool.
 - Resource mappings depend on upstream semantics. Canonicalizing a path does not resolve symlinks or prove what a remote tool will read.
 - Budgets count authorized calls, not bytes, rows, monetary cost or exactly-once upstream effects. A failure after authorization can consume budget without a successful upstream result.

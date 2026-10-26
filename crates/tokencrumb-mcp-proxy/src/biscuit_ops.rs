@@ -13,18 +13,23 @@
 //!
 //! Attenuation blocks (appended offline, signed by an ephemeral key) can only add
 //! restrictive checks / lower budget caps — monotonic narrowing, enforced by Biscuit.
+//!
+//! Third-party blocks are signed by a second authority that never sees the token: the
+//! holder sends it a request bound to the token's last signature, the authority returns
+//! a signed block, and the holder appends it. The proxy reads the endorsed facts only
+//! through `trusting <key>` checks, so they cannot widen anything else.
 
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use biscuit_auth::builder::Term as BiscuitTerm;
-use biscuit_auth::{Biscuit, BiscuitBuilder, BlockBuilder, UnverifiedBiscuit};
+use biscuit_auth::{Biscuit, BiscuitBuilder, BlockBuilder, ThirdPartyRequest, UnverifiedBiscuit};
 use chrono::{DateTime, Utc};
 use regex::Regex;
 
 use crate::canonical::canonicalize_prefix;
 use crate::error::{Error, ErrorKind, Result, py_repr};
-use crate::keys::{biscuit_keypair, biscuit_public};
+use crate::keys::{biscuit_keypair, biscuit_private, biscuit_public};
 use crate::profiles;
 use crate::token_contract::{BlockFacts, Term, block_facts, is_context, is_governed, metadata};
 use crate::validation::{MAX_INTEGER, integer, public_key, py_strip, string};
@@ -421,6 +426,119 @@ pub fn attenuate_at(
     Ok(attenuated.to_base64()?)
 }
 
+/// What a third-party authority endorses: `predicate(tool, resource_prefix, expires_at)`,
+/// one fact per tool.
+#[derive(Debug, Clone)]
+pub struct Endorse {
+    pub predicate: String,
+    pub tools: Vec<String>,
+    /// Canonical resource prefix; empty endorses calls that carry no resource.
+    pub resource_prefix: String,
+    pub ttl_seconds: i128,
+}
+
+/// The request a token holder sends to a third-party authority. It carries only the
+/// token's last signature, which binds the returned block to this token.
+pub fn third_party_request(token_b64: &str, authority_public_str: &str) -> Result<String> {
+    let token = Biscuit::from_base64(token_b64, biscuit_public(authority_public_str)?)?;
+    Ok(token.third_party_request()?.serialize_base64()?)
+}
+
+/// Sign an endorsement block for a third-party request (run by the third party).
+pub fn sign_third_party(
+    request_b64: &str,
+    third_party_private_str: &str,
+    endorse: &Endorse,
+) -> Result<String> {
+    sign_third_party_at(request_b64, third_party_private_str, endorse, Utc::now())
+}
+
+pub fn sign_third_party_at(
+    request_b64: &str,
+    third_party_private_str: &str,
+    endorse: &Endorse,
+    now: DateTime<Utc>,
+) -> Result<String> {
+    if !PREDICATE_RE.is_match(&endorse.predicate)
+        || is_context(&endorse.predicate)
+        || is_governed(&endorse.predicate)
+    {
+        return Err(fact_spec_error(format!(
+            "invalid endorsement predicate {}",
+            py_repr(&endorse.predicate)
+        )));
+    }
+    if endorse.tools.is_empty() || endorse.tools.len() > 64 {
+        return Err(Error::value("endorse between 1 and 64 tools"));
+    }
+    integer(endorse.ttl_seconds, "ttl_seconds", 1, MAX_INTEGER)?;
+    let prefix = match py_strip(&endorse.resource_prefix) {
+        "" => String::new(),
+        prefix => canonicalize_prefix(prefix)?,
+    };
+    let request = ThirdPartyRequest::deserialize_base64(py_strip(request_b64))?;
+    let mut lines: Vec<String> = Vec::new();
+    let mut params: HashMap<String, BiscuitTerm> = HashMap::from([
+        ("prefix".into(), BiscuitTerm::Str(prefix)),
+        (
+            "exp".into(),
+            date_term(add_seconds(now, endorse.ttl_seconds)?),
+        ),
+    ]);
+    for (i, tool) in endorse.tools.iter().enumerate() {
+        let tool = string(tool, "tool", 128)?;
+        lines.push(format!(
+            "{}({{tool{i}}}, {{prefix}}, {{exp}});",
+            endorse.predicate
+        ));
+        params.insert(format!("tool{i}"), BiscuitTerm::Str(tool.to_owned()));
+    }
+    let block = BlockBuilder::new().code_with_params(lines.join("\n"), params, HashMap::new())?;
+    let signed = request.create_block(&biscuit_private(third_party_private_str)?, block)?;
+    Ok(signed.serialize_base64()?)
+}
+
+/// Append a signed third-party block. The token is verified against the authority key
+/// before and after, so the external signature and its binding to this token hold.
+/// With `expected_key`, the block must be signed by that third party.
+pub fn append_third_party(
+    token_b64: &str,
+    authority_public_str: &str,
+    block_b64: &str,
+    expected_key: Option<&str>,
+) -> Result<String> {
+    let root = biscuit_public(authority_public_str)?;
+    Biscuit::from_base64(token_b64, root)?;
+    let appended = UnverifiedBiscuit::from_base64(token_b64)?
+        .append_third_party_base64(py_strip(block_b64))?
+        .to_base64()?;
+    let token = Biscuit::from_base64(&appended, root)?;
+    let signer = external_keys(&token).pop().flatten();
+    let Some(signer) = signer else {
+        return Err(Error::value(
+            "the appended block carries no external signature",
+        ));
+    };
+    if let Some(expected) = expected_key
+        && public_key(expected)? != signer
+    {
+        return Err(Error::value(format!(
+            "the block is signed by {signer}, not by the expected third party"
+        )));
+    }
+    check_unambiguous(&token)?;
+    Ok(appended)
+}
+
+/// The external key of each block, `None` for first-party blocks.
+pub fn external_keys(token: &Biscuit) -> Vec<Option<String>> {
+    token
+        .external_public_keys()
+        .into_iter()
+        .map(|k| k.map(|k| k.to_string().to_ascii_lowercase()))
+        .collect()
+}
+
 /// What `inspect` shows — no key required.
 #[derive(Debug, Clone)]
 pub struct InspectResult {
@@ -428,6 +546,8 @@ pub struct InspectResult {
     pub revocation_ids: Vec<String>,
     pub root_key_id: Option<u32>,
     pub blocks: Vec<String>,
+    /// The external key of each block (third-party blocks only).
+    pub external_keys: Vec<Option<String>>,
     /// Authority-block facts, values flattened per name.
     pub facts: Vec<(String, Vec<Term>)>,
 }
@@ -504,6 +624,11 @@ pub fn inspect(token_b64: &str) -> Result<InspectResult> {
         block_count: token.block_count(),
         revocation_ids: revocation_ids(token.revocation_identifiers()),
         root_key_id: token.root_key_id(),
+        external_keys: token
+            .external_public_keys()
+            .into_iter()
+            .map(|k| k.map(|k| k.to_string().to_ascii_lowercase()))
+            .collect(),
         blocks,
         facts,
     })

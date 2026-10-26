@@ -763,6 +763,9 @@ async fn handle_inner(
         // reads as if the call had been blocked.
         let enforced = allowed || mode != "warn-only";
         let mut detail = ctx.detail().unwrap_or_default();
+        if let Some(endorsements) = decision.as_ref().and_then(Decision::endorsements_json) {
+            detail.insert("third_party".into(), endorsements);
+        }
         if let Some(warning) = state
             .config
             .verifier

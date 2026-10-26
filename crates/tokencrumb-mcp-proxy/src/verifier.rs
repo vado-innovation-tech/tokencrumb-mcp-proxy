@@ -27,7 +27,7 @@ use crate::nonce_cache::{NonceCache, NonceStore};
 use crate::policy::{Limits, Policy, ToolPolicy, extract_resource, mapped_args};
 use crate::profiles;
 use crate::revocation::RevocationSource;
-use crate::token_contract::{Term, block_facts, metadata};
+use crate::token_contract::{Endorsement, Term, block_facts, metadata, third_party_blocks};
 use crate::validation::{integer, py_isspace, py_strip, string};
 
 /// Upper bound on the number of mapped-argument combinations authorized per call. A
@@ -103,6 +103,8 @@ pub struct Decision {
     pub subject: Option<String>,
     pub issuer: Option<String>,
     pub agent_key: Option<String>,
+    /// Blocks signed by declared third-party authorities, in token order.
+    pub endorsements: Vec<Endorsement>,
 }
 
 impl Decision {
@@ -115,6 +117,18 @@ impl Decision {
         map.insert("agent_key".into(), json!(self.agent_key));
         map
     }
+
+    /// `[{authority, block, key}]` for the audit detail; `None` without third parties.
+    pub fn endorsements_json(&self) -> Option<Value> {
+        (!self.endorsements.is_empty()).then(|| {
+            Value::Array(
+                self.endorsements
+                    .iter()
+                    .map(|e| json!({"authority": e.authority, "block": e.block, "key": e.key}))
+                    .collect(),
+            )
+        })
+    }
 }
 
 #[derive(Default, Clone)]
@@ -123,6 +137,7 @@ struct Identity {
     subject: Option<String>,
     issuer: Option<String>,
     agent_key: Option<String>,
+    endorsements: Vec<Endorsement>,
 }
 
 type PolicySource = Box<dyn Fn() -> Arc<Policy> + Send + Sync>;
@@ -175,6 +190,39 @@ pub struct Verifier {
     resolve_agent_pubkey: Option<AgentKeyResolver>,
     pub freshness_seconds: i128,
     now_fn: Clock,
+}
+
+/// A third-party key must never also be a root authority key: endorsements and grants
+/// would then come from one signer, which defeats the second authority.
+fn third_party_separated(policy: &Policy, authority_keys: &[String]) -> Result<()> {
+    for authority in &policy.third_party {
+        if authority.keys.iter().any(|k| {
+            authority_keys
+                .iter()
+                .any(|root| root.eq_ignore_ascii_case(k))
+        }) {
+            return Err(Error::value(format!(
+                "third-party authority {} reuses a root authority key",
+                py_repr(&authority.name)
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// `authority.predicate` of each required endorsement whose check failed, read from the
+/// authorizer's failed-check rendering (`... trusting ed25519/<key>`).
+fn missing_endorsements(tp: &ToolPolicy, policy: &Policy, message: &str) -> Vec<String> {
+    tp.require_third_party
+        .iter()
+        .filter(|r| {
+            message.contains(&format!("check if {}(", r.predicate))
+                && policy
+                    .third_party_authority(&r.authority)
+                    .is_some_and(|a| a.keys.iter().any(|k| message.contains(k.as_str())))
+        })
+        .map(|r| format!("{}.{}", r.authority, r.predicate))
+        .collect()
 }
 
 fn limits(limits: &Limits) -> AuthorizerLimits {
@@ -312,6 +360,7 @@ impl Verifier {
         for trusted in &authority_keys {
             biscuit_public(trusted)?;
         }
+        third_party_separated(&policy, &authority_keys)?;
         let freshness_seconds = integer(options.freshness_seconds, "freshness_seconds", 1, 3600)?;
         Ok(Self {
             audience,
@@ -467,6 +516,7 @@ impl Verifier {
                 subject: identity.subject.clone(),
                 issuer: identity.issuer.clone(),
                 agent_key: identity.agent_key.clone(),
+                endorsements: identity.endorsements.clone(),
             })
         };
         macro_rules! refuse {
@@ -555,9 +605,22 @@ impl Verifier {
             subject: facts.get("user").map(str::to_owned),
             issuer: facts.get("issuer").map(str::to_owned),
             agent_key: facts.get("agent_pubkey").map(str::to_owned),
+            endorsements: Vec::new(),
         };
         if self.revoked(&token, &facts)? {
             refuse!("biscuit revoked");
+        }
+        // -- 1a. third-party blocks: declared authority, delegated predicates only -----
+        if let Err(e) = third_party_separated(&policy, &self.authority_keys) {
+            refuse!(format!("policy error: {}", e.message));
+        }
+        match third_party_blocks(
+            &insp.blocks,
+            &biscuit_ops::external_keys(&token),
+            &policy.third_party,
+        ) {
+            Ok(endorsements) => identity.endorsements = endorsements,
+            Err(e) => refuse!(format!("invalid third-party block: {}", e.message)),
         }
         let token_agent_id = facts.get("agent_id").map(str::to_owned);
         let anchored_pubkey = facts.get("agent_pubkey").map(str::to_owned); // 3b key, block 0
@@ -793,8 +856,10 @@ impl Verifier {
                 remaining
             );
         }
+        // An endorsement is not a delegation step: only first-party blocks count.
+        let delegations = insp.block_count as i64 - 1 - identity.endorsements.len() as i64;
         if let Some(depth) = facts.max_delegation_depth.iter().min()
-            && insp.block_count as i64 - 1 > *depth
+            && delegations > *depth
         {
             refuse!("maximum delegation depth exceeded", presented);
         }
@@ -869,6 +934,15 @@ impl Verifier {
                     } else {
                         format!(" for {}", describe(combination))
                     };
+                    let missing = missing_endorsements(tp, &policy, &message);
+                    let message = if missing.is_empty() {
+                        message
+                    } else {
+                        format!(
+                            "third-party endorsement missing: {} (absent, expired or out of scope)",
+                            missing.join(", ")
+                        )
+                    };
                     refuse!(
                         format!("policy denied{scope}: {message}"),
                         presented,
@@ -928,6 +1002,7 @@ impl Verifier {
             subject: facts.get("user").map(str::to_owned),
             issuer: facts.get("issuer").map(str::to_owned),
             agent_key: anchored_pubkey,
+            endorsements: identity.endorsements,
         })
     }
 
@@ -1002,10 +1077,39 @@ impl Verifier {
         for name in &tp.require {
             lines.push(format!("check if {name}(true);"));
         }
+        // Third-party endorsements: `predicate(tool, prefix, expiry)` read ONLY from
+        // blocks signed by that authority's keys. Without `trusting`, Biscuit would not
+        // let the authorizer see them at all; with it, nothing else is widened.
+        let mut scope_params: HashMap<String, biscuit_auth::PublicKey> = HashMap::new();
+        for (i, requirement) in tp.require_third_party.iter().enumerate() {
+            let Some(authority) = policy.third_party_authority(&requirement.authority) else {
+                return Err(AuthorizeError::Broken(format!(
+                    "undeclared third-party authority {}",
+                    requirement.authority
+                )));
+            };
+            let mut scopes = Vec::new();
+            for (j, key) in authority.keys.iter().enumerate() {
+                let name = format!("tp{i}k{j}");
+                let key = biscuit_public(key).map_err(|e| AuthorizeError::Broken(e.message))?;
+                scope_params.insert(name.clone(), key);
+                scopes.push(format!("{{{name}}}"));
+            }
+            let body = if resource.is_some() {
+                "{tool}, $p, $e), resource($r), $r.starts_with($p)"
+            } else {
+                "{tool}, \"\", $e)"
+            };
+            lines.push(format!(
+                "check if {}({body}, time($t), $t < $e trusting {};",
+                requirement.predicate,
+                scopes.join(", ")
+            ));
+        }
         lines.push("allow if operation($o);".into());
 
         let mut authorizer = AuthorizerBuilder::new()
-            .code_with_params(lines.join("\n"), params, HashMap::new())
+            .code_with_params(lines.join("\n"), params, scope_params)
             .map(|b| b.set_limits(limits(&policy.limits)))
             .and_then(|b| b.build(token))
             .map_err(|e| AuthorizeError::Broken(e.to_string()))?;
