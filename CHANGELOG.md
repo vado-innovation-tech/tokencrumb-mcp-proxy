@@ -5,7 +5,7 @@
 ### Added
 
 - Add third-party authorities: a `third_party:` policy section declares second signers and the predicates each may state, and `require_third_party` makes a tool need their endorsement, read from Biscuit third-party blocks through `trusting` checks. Undeclared signers, undelegated predicates, rules and reserved facts in those blocks refuse the mandate; denials name the missing endorsement and the audit records the endorsing authorities.
-- Add `third-party-request`, `third-party-sign` and `third-party-append`, `keygen --type third-party`, `inspect --json` with per-block external keys and revocation ids, and `revoke --block` to revoke a single block.
+- Add `third-party-request`, `third-party-sign` and `third-party-append`, `keygen --type third-party`, `inspect --json` with per-block external keys and revocation ids, and `revoke --block` to revoke a token from one block on, such as a single endorsement.
 - Add `dpop-proof` to generate agent-signed proofs for issuer HTTP requests.
 - Accept a Biscuit embedded in an OIDC access-token response during bootstrap, verifying the Biscuit against a separately provisioned authority key. The enclosing JWT is not authenticated by this command.
 - Support repeated `attenuate --tool` restrictions and trusted tool-name facts during authorization.

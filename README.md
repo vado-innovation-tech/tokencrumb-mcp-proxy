@@ -267,7 +267,7 @@ tokencrumb third-party-append --token state/capability.b64 \
   --third-party-pub state/approver.pub --out state/endorsed.b64
 ```
 
-`revoke --from-token <token> --block <index>` revokes a single endorsement; the rest of the mandate stays valid and can be endorsed again.
+`revoke --from-token <token> --block <index>` revokes a single endorsement: every token carrying that block, including later attenuations, is refused, while the mandate as it was before the endorsement stays valid and can be endorsed again.
 
 ### Reload and revocation
 
@@ -325,7 +325,7 @@ tokencrumb revoke --key state/authority.key \
   --from-token state/capability.b64 --out state/revoked.list
 ```
 
-`--from-token` revokes the root capability family, including attenuated descendants; add `--block <index>` to revoke only one block, such as a [third-party endorsement](#third-party-authorities). Set the policy's `revocation` path to this file. Revocation must be distributed to each verifier. Signed snapshots expire; refresh and distribute them before `next_update`. Repeating `revoke` with an already revoked token republishes the list with a new sequence and freshness window. Multiple accepted authority keys do not imply multiple required signers.
+`--from-token` revokes the root capability family, including attenuated descendants; add `--block <index>` to revoke from one block on, such as a [third-party endorsement](#third-party-authorities). Set the policy's `revocation` path to this file. Revocation must be distributed to each verifier. Signed snapshots expire; refresh and distribute them before `next_update`. Repeating `revoke` with an already revoked token republishes the list with a new sequence and freshness window. Multiple accepted authority keys do not imply multiple required signers.
 
 ### Registry-backed profile
 

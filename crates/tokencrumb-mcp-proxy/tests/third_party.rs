@@ -657,7 +657,7 @@ fn the_cli_runs_the_whole_endorsement_exchange() {
 }
 
 #[test]
-fn revoking_one_endorsement_keeps_the_rest_of_the_mandate() {
+fn revoking_an_endorsement_leaves_the_unendorsed_mandate_valid() {
     use tokencrumb_mcp_proxy::revocation::StaticRevocations;
 
     let s = setup();
@@ -677,6 +677,12 @@ fn revoking_one_endorsement_keeps_the_rest_of_the_mandate() {
         .world
         .verifier(policy_for(&[&s.approver.public_str]), Some(options));
     denied(&delete(&v, &t, Q3), "revoked");
+    let read = call(&v, &t, "read_file", json!({"path": Q3}));
+    denied(&read, "revoked");
+    assert!(
+        !delete(&v, &base, Q3).allow,
+        "the bare mandate still needs an endorsement"
+    );
     // A fresh endorsement on the same mandate works again.
     let again = endorsed(
         &s,
