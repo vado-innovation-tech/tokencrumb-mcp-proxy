@@ -356,6 +356,86 @@ pub fn metadata<S: AsRef<str>>(blocks: &[S]) -> Result<Metadata> {
     Ok(meta)
 }
 
+/// At most this many third-party blocks in one mandate.
+pub const MAX_THIRD_PARTY_BLOCKS: usize = 8;
+
+/// A block signed by a declared third-party authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Endorsement {
+    /// Index of the block in the token (never 0: the authority block has no external key).
+    pub block: usize,
+    pub authority: String,
+    /// The external key that signed the block, `ed25519/<hex>`.
+    pub key: String,
+}
+
+/// Check every block that carries an external signature.
+///
+/// `external_keys[i]` is the key that signed block `i` (`None` for first-party blocks).
+/// A third-party block must come from a declared authority and may hold only:
+/// facts of the predicates delegated to that authority, bound facts (the proxy takes the
+/// tightest) and checks (which can only restrict). Rules, identity and context facts,
+/// undelegated predicates and undeclared keys refuse the whole mandate.
+pub fn third_party_blocks<S: AsRef<str>>(
+    blocks: &[S],
+    external_keys: &[Option<String>],
+    authorities: &[crate::policy::ThirdPartyAuthority],
+) -> Result<Vec<Endorsement>> {
+    let mut out = Vec::new();
+    for (index, key) in external_keys.iter().enumerate() {
+        let Some(key) = key else { continue };
+        let Some(authority) = authorities.iter().find(|a| a.keys.contains(key)) else {
+            return Err(Error::value(format!(
+                "block {index} is signed by an undeclared third-party key {key}"
+            )));
+        };
+        let source = blocks
+            .get(index)
+            .ok_or_else(|| Error::value(format!("block {index} is missing")))?;
+        for statement in statements(source.as_ref())? {
+            if statement.is_empty()
+                || ["check ", "reject "]
+                    .iter()
+                    .any(|p| statement.starts_with(p))
+            {
+                continue;
+            }
+            let Some(name) = declaration_name(&statement) else {
+                return Err(Error::value(format!(
+                    "block {index}: unsupported third-party declaration"
+                )));
+            };
+            if Fact::try_from(statement.as_str()).is_err() {
+                return Err(Error::value(format!(
+                    "block {index}: a third-party block cannot carry rules ({name})"
+                )));
+            }
+            if is_context(name) || is_identity(name) {
+                return Err(Error::value(format!(
+                    "block {index}: reserved predicate in a third-party block: {name}"
+                )));
+            }
+            if !BOUND_FACTS.contains(&name) && !authority.predicates.iter().any(|p| p == name) {
+                return Err(Error::value(format!(
+                    "block {index}: {name} is not delegated to third-party authority {}",
+                    authority.name
+                )));
+            }
+        }
+        out.push(Endorsement {
+            block: index,
+            authority: authority.name.clone(),
+            key: key.clone(),
+        });
+    }
+    if out.len() > MAX_THIRD_PARTY_BLOCKS {
+        return Err(Error::value(format!(
+            "at most {MAX_THIRD_PARTY_BLOCKS} third-party blocks per mandate"
+        )));
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

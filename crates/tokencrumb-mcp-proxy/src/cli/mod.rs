@@ -40,12 +40,13 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
-    /// Generate an Ed25519 keypair (authority root, agent identity, or audit signer).
+    /// Generate an Ed25519 keypair (authority root, agent identity, audit signer or
+    /// third-party authority).
     Keygen {
         /// Base name; writes `<out>.key` and `<out>.pub`
         #[arg(long)]
         out: String,
-        /// authority | agent | audit
+        /// authority | agent | audit | third-party
         #[arg(long = "type", default_value = "authority")]
         key_type: String,
         /// Encrypt the private key (scrypt+AES-GCM)
@@ -140,6 +141,66 @@ pub enum Command {
     Inspect {
         /// Token file or base64 string
         token: String,
+        /// Print one JSON document instead of panels
+        #[arg(long)]
+        json: bool,
+    },
+    /// Ask a third-party authority for an endorsement: print the request bound to this
+    /// token (holder side; the token itself is never sent).
+    ThirdPartyRequest {
+        /// Token file or base64 string
+        #[arg(long)]
+        token: String,
+        /// Authority public key file
+        #[arg(long)]
+        authority_pub: String,
+        #[arg(long)]
+        out: Option<String>,
+    },
+    /// Sign an endorsement block for a third-party request (third-party side).
+    ///
+    /// Writes `predicate(tool, resource_prefix, expires_at)` for each --tool. The
+    /// gateway reads it only for tools whose policy requires this authority.
+    ThirdPartySign {
+        /// Third-party private key file
+        #[arg(long)]
+        key: String,
+        /// Request file or base64 string
+        #[arg(long)]
+        request: String,
+        /// Delegated predicate, as declared in the gateway policy
+        #[arg(long, default_value = "approval")]
+        predicate: String,
+        /// Endorsed tool (repeatable)
+        #[arg(long, required = true)]
+        tool: Vec<String>,
+        /// Endorsed resource prefix; empty endorses calls without a resource
+        #[arg(long, default_value = "")]
+        resource_prefix: String,
+        /// Endorsement lifetime, e.g. 5m
+        #[arg(long, default_value = "5m")]
+        ttl: String,
+        #[arg(long)]
+        passphrase: Option<String>,
+        #[arg(long)]
+        out: Option<String>,
+    },
+    /// Append a signed third-party block to the token it was requested for (holder side).
+    ThirdPartyAppend {
+        /// Token file or base64 string
+        #[arg(long)]
+        token: String,
+        /// Authority public key file
+        #[arg(long)]
+        authority_pub: String,
+        /// Third-party block file or base64 string
+        #[arg(long)]
+        block: String,
+        /// Refuse a block not signed by this third-party public key file
+        #[arg(long)]
+        third_party_pub: Option<String>,
+        #[arg(long)]
+        out: Option<String>,
     },
     /// Launch the TokenCrumb - MCP Proxy proxy in front of an unmodified MCP server.
     Serve(ServeArgs),
@@ -239,6 +300,9 @@ pub enum Command {
         /// Revoke a token by its authority id
         #[arg(long)]
         from_token: Option<String>,
+        /// With --from-token, revoke only this block (e.g. one third-party endorsement)
+        #[arg(long)]
+        block: Option<usize>,
         #[arg(long)]
         passphrase: Option<String>,
     },
@@ -567,7 +631,64 @@ fn run(command: Command) -> Outcome {
             .or_else(|e| fail(format!("attenuation failed: {}", e.message)))?;
             emit_token(&attenuated, out.as_deref(), "attenuated")
         }
-        Command::Inspect { token } => inspect(&token),
+        Command::Inspect { token, json } => inspect(&token, json),
+        Command::ThirdPartyRequest {
+            token,
+            authority_pub,
+            out,
+        } => {
+            let public = load_public(&authority_pub).map_err(Exit::Fail)?;
+            let request = ops::third_party_request(&read_token_arg(&token), &public)?;
+            emit_text(&request, out.as_deref(), "third-party request")
+        }
+        Command::ThirdPartySign {
+            key,
+            request,
+            predicate,
+            tool,
+            resource_prefix,
+            ttl,
+            passphrase,
+            out,
+        } => {
+            let private = load_private(&key, passphrase.as_deref())
+                .or_else(|e| fail(format!("cannot load private key: {e}")))?;
+            let ttl_seconds =
+                tokencrumb_mcp_proxy::duration::parse_duration(&ttl).map_err(|e| {
+                    usage_error("third-party-sign", format!("Invalid value: {}", e.message))
+                })?;
+            let block = ops::sign_third_party(
+                &read_token_arg(&request),
+                &private,
+                &ops::Endorse {
+                    predicate,
+                    tools: tool,
+                    resource_prefix,
+                    ttl_seconds,
+                },
+            )?;
+            emit_text(&block, out.as_deref(), "third-party block")
+        }
+        Command::ThirdPartyAppend {
+            token,
+            authority_pub,
+            block,
+            third_party_pub,
+            out,
+        } => {
+            let public = load_public(&authority_pub).map_err(Exit::Fail)?;
+            let expected = match third_party_pub.as_deref() {
+                Some(path) => Some(load_public(path).map_err(Exit::Fail)?),
+                None => None,
+            };
+            let appended = ops::append_third_party(
+                &read_token_arg(&token),
+                &public,
+                &read_token_arg(&block),
+                expected.as_deref(),
+            )?;
+            emit_token(&appended, out.as_deref(), "endorsed")
+        }
         Command::Serve(args) => serve(&args),
         Command::AuditVerify {
             log,
@@ -627,6 +748,7 @@ fn run(command: Command) -> Outcome {
             add,
             authority_pub,
             from_token,
+            block,
             passphrase,
         } => revoke(
             &key,
@@ -634,6 +756,7 @@ fn run(command: Command) -> Outcome {
             add.as_deref(),
             authority_pub.as_deref(),
             from_token.as_deref(),
+            block,
             passphrase.as_deref(),
         ),
         Command::ClientWrap {
@@ -749,6 +872,24 @@ pub fn read_secret(value: Option<&str>) -> Result<Option<String>, String> {
 }
 
 /// Token to stdout (pipeable), status to stderr — or the token to a private file.
+/// A request or block on stdout (or in `out`), with its label on stderr.
+fn emit_text(value: &str, out: Option<&str>, label: &str) -> Outcome {
+    let label = paint(label, "32", Stream::Stderr);
+    match out.filter(|o| !o.is_empty()) {
+        Some(out) => {
+            storage::write_secure(out, format!("{value}\n").as_bytes())?;
+            status(&format!("{label} -> {out}"));
+        }
+        None => {
+            status(&format!("{label}:"));
+            let mut stdout = std::io::stdout().lock();
+            let _ = writeln!(stdout, "{value}");
+            let _ = stdout.flush();
+        }
+    }
+    Ok(())
+}
+
 fn emit_token(token: &str, out: Option<&str>, verb: &str) -> Outcome {
     let verb = paint(verb, "32", Stream::Stderr);
     match out.filter(|o| !o.is_empty()) {
@@ -796,8 +937,8 @@ fn runtime() -> Result<tokio::runtime::Runtime, Exit> {
 // --------------------------------------------------------------------------- //
 
 fn keygen(out: &str, key_type: &str, passphrase: Option<&str>) -> Outcome {
-    if !["authority", "agent", "audit"].contains(&key_type) {
-        return fail("--type must be 'authority', 'agent' or 'audit'");
+    if !["authority", "agent", "audit", "third-party"].contains(&key_type) {
+        return fail("--type must be 'authority', 'agent', 'audit' or 'third-party'");
     }
     let kp = keys::generate_keypair();
     let (key_path, pub_path) = (format!("{out}.key"), format!("{out}.pub"));
@@ -826,10 +967,49 @@ fn keygen(out: &str, key_type: &str, passphrase: Option<&str>) -> Outcome {
     Ok(())
 }
 
-fn inspect(token: &str) -> Outcome {
+fn inspect(token: &str, as_json: bool) -> Outcome {
     let token_b64 = read_token_arg(token);
     let result = ops::inspect(&token_b64)
         .or_else(|e| fail(format!("cannot inspect token: {}", e.message)))?;
+    if as_json {
+        let blocks: Vec<Value> = result
+            .blocks
+            .iter()
+            .enumerate()
+            .map(|(i, source)| {
+                let external = result.external_keys.get(i).cloned().flatten();
+                let kind = match (i, &external) {
+                    (0, _) => "authority",
+                    (_, Some(_)) => "third-party",
+                    _ => "attenuation",
+                };
+                json!({
+                    "index": i,
+                    "kind": kind,
+                    "external_key": external,
+                    "revocation_id": result.revocation_ids.get(i),
+                    "source": py_strip(source),
+                })
+            })
+            .collect();
+        let mut facts = Map::new();
+        for (name, values) in &result.facts {
+            facts.insert(
+                name.clone(),
+                Value::Array(values.iter().map(|t| t.to_json()).collect()),
+            );
+        }
+        say(&dumps_indent(
+            &json!({
+                "block_count": result.block_count,
+                "root_key_id": result.root_key_id,
+                "authority_facts": facts,
+                "blocks": blocks,
+            }),
+            2,
+        ));
+        return Ok(());
+    }
     let joined = |name: &str, missing: &str| -> String {
         match result.fact(name) {
             Some(values) => values
@@ -856,7 +1036,11 @@ fn inspect(token: &str) -> Outcome {
     ]);
     let mut out = panel("biscuit inspect", &rows);
     for (i, source) in result.blocks.iter().enumerate() {
-        let role = if i == 0 { "authority" } else { "attenuation" };
+        let role = match result.external_keys.get(i).cloned().flatten() {
+            _ if i == 0 => "authority".to_owned(),
+            Some(key) => format!("third-party {key}"),
+            None => "attenuation".to_owned(),
+        };
         let source = py_strip(source);
         let lines: Vec<String> = if source.is_empty() {
             vec!["(empty)".to_owned()]
@@ -1059,6 +1243,7 @@ fn revoke(
     add: Option<&str>,
     authority_pub: Option<&str>,
     from_token: Option<&str>,
+    block: Option<usize>,
     passphrase: Option<&str>,
 ) -> Outcome {
     let private = load_private(key, passphrase).map_err(Exit::Fail)?;
@@ -1072,7 +1257,16 @@ fn revoke(
         // Only a mandate this authority really signed is revoked by its family id.
         biscuit_auth::Biscuit::from_base64(&raw, keys::biscuit_public(&public)?)
             .map_err(tokencrumb_mcp_proxy::Error::from)?;
-        additions.push(ops::capability_key(&raw)?);
+        match block {
+            // The whole family: the authority block id covers every descendant.
+            None | Some(0) => additions.push(ops::capability_key(&raw)?),
+            Some(index) => match ops::inspect(&raw)?.revocation_ids.get(index) {
+                Some(id) => additions.push(id.clone()),
+                None => return fail(format!("the token has no block {index}")),
+            },
+        }
+    } else if block.is_some() {
+        return fail("--block needs --from-token");
     }
     if let Some(add) = add.filter(|a| !a.is_empty()) {
         additions.push(add.to_owned());

@@ -18,7 +18,10 @@ use crate::duration::parse_duration;
 use crate::error::{Error, Result, py_repr};
 use crate::json::{as_integer, dumps};
 use crate::profiles;
-use crate::validation::{MAX_INTEGER, choice_value, integer, integer_value, mapping, string_value};
+use crate::token_contract::{is_context, is_governed};
+use crate::validation::{
+    MAX_INTEGER, choice_value, integer, integer_value, mapping, public_key, string_value,
+};
 
 /// Proof facts, injected by the verifier only after real crypto checks.
 pub const PROOF_FACTS: &[&str] = &[
@@ -68,6 +71,30 @@ impl Default for McpPolicy {
     }
 }
 
+/// At most this many keys per third-party authority: the current one and its
+/// predecessors, as for root authority epochs.
+pub const MAX_THIRD_PARTY_KEYS: usize = 8;
+
+/// A second authority whose signed blocks the gateway believes, predicate by predicate.
+///
+/// Its blocks carry an external signature (Biscuit third-party blocks). The gateway
+/// reads `predicates` from them, and only through `trusting <key>` checks generated for
+/// the tools that require them; every other statement is refused.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ThirdPartyAuthority {
+    pub name: String,
+    /// `ed25519/<hex>`, lowercase; the first is the current key.
+    pub keys: Vec<String>,
+    pub predicates: Vec<String>,
+}
+
+/// A tool call needs `predicate(tool, resource_prefix, expires_at)` signed by `authority`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ThirdPartyRequirement {
+    pub authority: String,
+    pub predicate: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ToolPolicy {
     pub name: String,
@@ -84,6 +111,8 @@ pub struct ToolPolicy {
     pub budget: Option<i128>,
     pub require: Vec<String>,
     pub args: Vec<ArgMapping>,
+    /// Endorsements this tool needs from third-party authorities, all of them.
+    pub require_third_party: Vec<ThirdPartyRequirement>,
 }
 
 /// Runtime bounds on one Datalog evaluation (anti-DoS). Defaults mirror biscuit-auth's
@@ -129,6 +158,8 @@ pub struct Policy {
     pub upstreams: Vec<(String, String)>,
     /// Tool mappings, in declaration order.
     pub tools: Vec<ToolPolicy>,
+    /// Third-party authorities, in declaration order.
+    pub third_party: Vec<ThirdPartyAuthority>,
     pub mcp: McpPolicy,
     /// SHA-256 of the raw policy bytes, recorded on every audit entry.
     pub policy_digest: String,
@@ -147,6 +178,7 @@ impl Default for Policy {
             limits: Limits::default(),
             upstreams: Vec::new(),
             tools: Vec::new(),
+            third_party: Vec::new(),
             mcp: McpPolicy::default(),
             policy_digest: String::new(),
         }
@@ -170,6 +202,17 @@ impl Policy {
     /// True for methods relayed as-is (never `tools/call` or `tools/list`).
     pub fn method_allowed(&self, method: &str) -> bool {
         self.mcp.allow_methods.iter().any(|m| m == method)
+    }
+
+    pub fn third_party_authority(&self, name: &str) -> Option<&ThirdPartyAuthority> {
+        self.third_party.iter().find(|a| a.name == name)
+    }
+
+    /// The third-party authority holding this external key, if one is declared.
+    pub fn third_party_by_key(&self, key: &str) -> Option<&ThirdPartyAuthority> {
+        self.third_party
+            .iter()
+            .find(|a| a.keys.iter().any(|k| k == key))
     }
 
     pub fn upstream(&self, name: &str) -> Option<&str> {
@@ -270,6 +313,134 @@ fn is_upstream_name(name: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
 }
 
+fn is_predicate_name(name: &str) -> bool {
+    (1..=64).contains(&name.len())
+        && name.starts_with(|c: char| c.is_ascii_lowercase())
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+}
+
+fn parse_third_party(raw: &Value) -> Result<Vec<ThirdPartyAuthority>> {
+    let Value::Object(entries) = raw else {
+        return Err(Error::value("third_party: expected an object"));
+    };
+    let mut out: Vec<ThirdPartyAuthority> = Vec::new();
+    for (name, entry) in entries {
+        if !is_upstream_name(name) {
+            return Err(Error::value(format!(
+                "third_party: invalid authority name {}",
+                py_repr(name)
+            )));
+        }
+        let place = format!("third_party.{name}");
+        let entry = mapping(entry, &["keys", "predicates"], &place)?;
+        let mut keys: Vec<String> = Vec::new();
+        for key in list(
+            entry.get("keys").unwrap_or(&Value::Null),
+            &format!("{place}.keys"),
+        )? {
+            let text = string_value(Some(key), &format!("{place}.keys"), 72)?;
+            let key = public_key(text).map_err(|_| {
+                Error::value(format!("{place}.keys: expected ed25519/<64 hex digits>"))
+            })?;
+            if keys.contains(&key) || out.iter().any(|a| a.keys.contains(&key)) {
+                return Err(Error::value(format!("{place}.keys: key declared twice")));
+            }
+            keys.push(key);
+        }
+        if keys.is_empty() || keys.len() > MAX_THIRD_PARTY_KEYS {
+            return Err(Error::value(format!(
+                "{place}.keys: expected 1 to {MAX_THIRD_PARTY_KEYS} keys"
+            )));
+        }
+        let mut predicates: Vec<String> = Vec::new();
+        for predicate in list(
+            entry.get("predicates").unwrap_or(&Value::Null),
+            &format!("{place}.predicates"),
+        )? {
+            let predicate = string_value(Some(predicate), &format!("{place}.predicates"), 64)?;
+            // A third party vouches for its own vocabulary, never for what the gateway
+            // injects or what only the root authority may state.
+            if !is_predicate_name(predicate)
+                || is_context(predicate)
+                || is_governed(predicate)
+                || PROOF_FACTS.contains(&predicate)
+                || predicate == "right"
+            {
+                return Err(Error::value(format!(
+                    "{place}.predicates: {} cannot be delegated",
+                    py_repr(predicate)
+                )));
+            }
+            if !predicates.iter().any(|p| p == predicate) {
+                predicates.push(predicate.to_owned());
+            }
+        }
+        if predicates.is_empty() {
+            return Err(Error::value(format!(
+                "{place}.predicates: at least one predicate is required"
+            )));
+        }
+        out.push(ThirdPartyAuthority {
+            name: name.clone(),
+            keys,
+            predicates,
+        });
+    }
+    Ok(out)
+}
+
+fn parse_requirements(
+    tool: &str,
+    raw: &Value,
+    authorities: &[ThirdPartyAuthority],
+) -> Result<Vec<ThirdPartyRequirement>> {
+    let mut out: Vec<ThirdPartyRequirement> = Vec::new();
+    for entry in list(raw, "require_third_party")? {
+        let entry = mapping(
+            entry,
+            &["authority", "predicate"],
+            &format!("{tool}.require_third_party"),
+        )?;
+        let authority = string_value(entry.get("authority"), "require_third_party.authority", 64)?;
+        let Some(declared) = authorities.iter().find(|a| a.name == authority) else {
+            return Err(Error::value(format!(
+                "tool {}: third-party authority {} is not declared in `third_party:`",
+                py_repr(tool),
+                py_repr(authority)
+            )));
+        };
+        let predicate = match entry.get("predicate") {
+            Some(v) => string_value(Some(v), "require_third_party.predicate", 64)?,
+            None if declared.predicates.len() == 1 => declared.predicates[0].as_str(),
+            None => {
+                return Err(Error::value(format!(
+                    "tool {}: name the predicate required from {}",
+                    py_repr(tool),
+                    py_repr(authority)
+                )));
+            }
+        };
+        if !declared.predicates.iter().any(|p| p == predicate) {
+            return Err(Error::value(format!(
+                "tool {}: {} is not delegated to {}",
+                py_repr(tool),
+                py_repr(predicate),
+                py_repr(authority)
+            )));
+        }
+        let requirement = ThirdPartyRequirement {
+            authority: authority.to_owned(),
+            predicate: predicate.to_owned(),
+        };
+        if !out.contains(&requirement) {
+            out.push(requirement);
+        }
+    }
+    Ok(out)
+}
+
 fn get_or<'a>(map: &'a serde_json::Map<String, Value>, key: &str, default: &'a Value) -> &'a Value {
     map.get(key).unwrap_or(default)
 }
@@ -292,6 +463,7 @@ pub fn parse_policy(raw: &Value) -> Result<Policy> {
             "max_ttl",
             "revocation",
             "clock_skew_seconds",
+            "third_party",
         ],
         "policy",
     )?;
@@ -332,6 +504,8 @@ pub fn parse_policy(raw: &Value) -> Result<Policy> {
         ));
     }
 
+    let third_party = parse_third_party(get_or(raw, "third_party", &empty_map))?;
+
     let mut tools: Vec<ToolPolicy> = Vec::new();
     for entry in list(get_or(raw, "tools", &empty_list), "tools")? {
         let entry = mapping(
@@ -345,6 +519,7 @@ pub fn parse_policy(raw: &Value) -> Result<Policy> {
                 "allow",
                 "require",
                 "args",
+                "require_third_party",
             ],
             "tool",
         )?;
@@ -407,6 +582,11 @@ pub fn parse_policy(raw: &Value) -> Result<Policy> {
                 name: alias,
             });
         }
+        let require_third_party = parse_requirements(
+            &name,
+            get_or(entry, "require_third_party", &empty_list),
+            &third_party,
+        )?;
         let upstream = resolve_upstream(&name, entry.get("upstream"), &upstreams)?;
         let upstream_tool = match entry.get("upstream_tool") {
             Some(v) => Some(string_value(Some(v), "upstream_tool", 256)?.to_owned()),
@@ -427,6 +607,7 @@ pub fn parse_policy(raw: &Value) -> Result<Policy> {
             budget,
             require,
             args,
+            require_third_party,
         });
     }
 
@@ -529,6 +710,7 @@ pub fn parse_policy(raw: &Value) -> Result<Policy> {
         limits,
         upstreams,
         tools,
+        third_party,
         mcp: McpPolicy {
             spec_version: spec.to_owned(),
             allow_methods: methods,

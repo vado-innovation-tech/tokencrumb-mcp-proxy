@@ -106,7 +106,7 @@ fn keygen_writes_a_private_pair_and_never_overwrites_it() {
     assert_eq!(bad.status.code(), Some(1));
     assert_eq!(
         stderr(&bad).trim(),
-        "error: --type must be 'authority', 'agent' or 'audit'"
+        "error: --type must be 'authority', 'agent', 'audit' or 'third-party'"
     );
 }
 
