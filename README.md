@@ -572,7 +572,9 @@ The vendored Biscuit source retains upstream inline tests. Two additional except
 
 ### Dependency maintenance
 
-Install `cargo-audit` and run `python3 tools/audit_dependencies.py` to check dependencies against RustSec. It runs `cargo audit` on the build lockfile, then audits a temporary copy that identifies the local Biscuit package by its official 6.0.0 version and registry checksum. This additional pass is required because `cargo audit` skips local dependencies. The real build lockfile is not modified. CI fails on known vulnerabilities and reports maintenance advisories. No advisory is suppressed.
+Install `cargo-audit` and run `python3 tools/audit_dependencies.py` to check dependencies against RustSec. It runs `cargo audit` on the build lockfile, then audits a temporary copy that identifies the local Biscuit package by its official 6.0.0 version and registry checksum. This additional pass is required because `cargo audit` skips local dependencies. The real build lockfile is not modified. CI fails on known vulnerabilities and reports maintenance advisories. One advisory is suppressed in `.cargo/audit.toml`:
+
+- `RUSTSEC-2026-0387` (timing variability in `crypto-bigint` 0.5.5). It is reached only through `p256` 0.13, a mandatory dependency of `biscuit-auth` 6.0.0, and has no fix in the 0.5 series. TokenCrumb generates and signs with Ed25519 keys only; P-256 code runs at most to verify a signature over public data. Remove the exception once Biscuit depends on `p256` 0.14 or later.
 
 Read the [patch scope, provenance and removal procedure](#temporary-biscuit-dependency) before updating the vendored dependency. `python3 tools/check_vendor.py` verifies the reviewed source and prevents reintroducing the macro packages into the lockfile.
 

@@ -1,0 +1,9 @@
+# Advisory exceptions for `cargo audit`. Each one is documented under
+# "Dependency maintenance" in README.md, with its reason and removal condition.
+[advisories]
+ignore = [
+    # crypto-bigint 0.5.5 timing variability, reached only through p256 0.13, a
+    # mandatory dependency of biscuit-auth 6.0.0. TokenCrumb signs and generates
+    # Ed25519 keys only; remove once Biscuit moves to p256 0.14.
+    "RUSTSEC-2026-0387",
+]

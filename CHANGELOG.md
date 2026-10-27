@@ -25,6 +25,7 @@
 ### Dependency updates
 
 - Update `rustls` to 0.23.46, `rustls-webpki` to 0.103.16, `webpki-roots` to 1.0.10 and `tokio` to 1.54.1 to address RUSTSEC-2026-0346 to 0349, 0381, 0382 and 0386.
+- Suppress RUSTSEC-2026-0387 (`crypto-bigint` 0.5.5 through Biscuit's mandatory `p256` 0.13) in `.cargo/audit.toml`, with its reason and removal condition in the README; TokenCrumb signs with Ed25519 only.
 - Update the resolved `time` dependency from 0.3.45 to 0.3.55 and `axum-server` from 0.7.3 to 0.8.0 to address dependency audit findings; remove `rustls-pemfile` from the resolved dependencies.
 - Remove unused direct dependencies and update CI actions.
 - Pin every GitHub Action to a full commit SHA, retaining its original version or branch as a comment.
