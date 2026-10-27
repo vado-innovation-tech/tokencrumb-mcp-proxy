@@ -548,10 +548,8 @@ impl Verifier {
             Err(e) => refuse!(format!("invalid mandate schema: {}", e.message)),
         };
         identity = Identity {
-            mandate_id: facts
-                .get("jti")
-                .map(str::to_owned)
-                .or_else(|| insp.revocation_ids.first().cloned()),
+            // The authority block's revocation id, as on an allowed call: one mandate, one id.
+            mandate_id: insp.revocation_ids.first().cloned(),
             subject: facts.get("user").map(str::to_owned),
             issuer: facts.get("issuer").map(str::to_owned),
             agent_key: facts.get("agent_pubkey").map(str::to_owned),
