@@ -164,3 +164,42 @@ fn profile3a_registry_allow() {
     assert!(d.allow, "{}", d.reason);
     assert_eq!(d.profile, "registry_backed");
 }
+
+/// An issuer-minted mandate carries a `jti`; the audit must still name it by one id only.
+#[test]
+fn a_mandate_has_one_audit_id_whether_allowed_or_refused() {
+    let w = World::new();
+    let expiry = (chrono::Utc::now() + chrono::Duration::hours(1)).format("%Y-%m-%dT%H:%M:%SZ");
+    let source = format!(
+        r#"agent_id("agent-1"); required_profile("native"); right("read_file", "read");
+        budget_cap(200); audience("{}"); jti("3f1c0e7a-issuer-capability-id");
+        expires_at({expiry}); check if time($t), $t < {expiry};
+        check if resource($r), $r.starts_with("/projects/acme/");"#,
+        common::proxy::TEST_AUDIENCE
+    );
+    let token = biscuit_auth::Biscuit::builder()
+        .code(source.as_str())
+        .unwrap()
+        .build(&tokencrumb_mcp_proxy::keys::biscuit_keypair(&w.authority.private_str).unwrap())
+        .unwrap()
+        .to_base64()
+        .unwrap();
+    let verifier = w.verifier(test_policy(), None);
+    let allowed = verify(
+        &verifier,
+        "read_file",
+        json!({"path": "/projects/acme/q3.md"}),
+        &biscuit_headers(&token, None),
+    );
+    let refused = verify(
+        &verifier,
+        "read_file",
+        json!({"path": "/etc/passwd"}),
+        &biscuit_headers(&token, None),
+    );
+    assert!(allowed.allow, "{}", allowed.reason);
+    assert!(!refused.allow);
+    let key = tokencrumb_mcp_proxy::biscuit_ops::capability_key(&token).unwrap();
+    assert_eq!(allowed.mandate_id.as_deref(), Some(key.as_str()));
+    assert_eq!(refused.mandate_id, allowed.mandate_id);
+}
