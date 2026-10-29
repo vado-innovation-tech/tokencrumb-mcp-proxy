@@ -13,9 +13,14 @@
 //! client -> server, `tools/call`   enforced by the ordered verification pipeline
 //! client -> server, `tools/list`   relayed, then filtered against the local catalog
 //! client -> server, allow-listed   relayed as-is (initialize, ping, notifications)
+//! client -> server, server/discover relayed, capabilities reduced to tools
 //! client -> server, anything else  refused with a JSON-RPC error
 //! server -> client (GET/SSE)       channel not opened — a server can never initiate
 //! ```
+//!
+//! Two MCP eras are served (see [`super::era`]): `initialize`-based revisions with
+//! sessions, and 2026-07-28 requests carrying their revision in `_meta`, whose mirrored
+//! headers are checked against the body before any decision.
 //!
 //! Pinned to an MCP revision that has no JSON-RPC batching (policy `mcp.spec_version`),
 //! so a batch body is refused outright rather than unpacked: accepting batches while only
@@ -42,7 +47,8 @@ use serde_json::{Map, Value, json};
 use crate::audit::{AuditLog, Record};
 use crate::error::{Error, ErrorKind, Result, py_repr};
 use crate::json::{dumps, strict_json};
-use crate::policy::Policy;
+use crate::policy::{MODERN_SPEC_VERSIONS, Policy};
+use crate::proxy::era::{self, Era, ParamHeader};
 use crate::proxy::messages::{
     INTERNAL_ERROR, INVALID_REQUEST, METHOD_NOT_FOUND, PARSE_ERROR, deny_result, error_response,
     response_messages,
@@ -56,6 +62,11 @@ const RELAY_HEADERS: &[&str] = &["mcp-session-id", "mcp-protocol-version"];
 const MAX_CLIENTS: usize = 4096;
 const MAX_SESSIONS: usize = 4096;
 const SESSION_TTL: Duration = Duration::from_secs(3600);
+/// A `server/discover` probe left unanswered this long identifies a legacy server.
+const PROBE_TIMEOUT: Duration = Duration::from_secs(5);
+/// The gateway's own refusal of a feature it does not open (multi round-trip
+/// requests, tasks): outside the JSON-RPC reserved range, as MCP 2026-07-28 asks.
+pub const NOT_ENABLED: i64 = -31001;
 
 pub struct ProxyConfig {
     pub verifier: Arc<Verifier>,
@@ -162,11 +173,20 @@ impl Sessions {
     }
 }
 
+/// `(endpoint, public tool name)`.
+type ToolKey = (Option<String>, String);
+
 struct AppState {
     config: ProxyConfig,
     upstreams: HashMap<Option<String>, SharedUpstream>,
     rates: Mutex<Rates>,
     sessions: Mutex<Sessions>,
+    /// Each upstream's era, once detected.
+    eras: Mutex<HashMap<Option<String>, Era>>,
+    /// `x-mcp-header` annotations learned from each endpoint's catalog, by public tool name.
+    param_headers: Mutex<HashMap<ToolKey, Vec<ParamHeader>>>,
+    /// When the client-capacity refusal was last written to the audit log.
+    capacity_logged: Mutex<Option<Instant>>,
 }
 
 fn json_response(status: StatusCode, value: &Value) -> Response {
@@ -261,10 +281,35 @@ fn drop_draft_07_declaration(tool: &mut Value) {
     }
 }
 
+/// Serialize messages back in the shape they arrived in (one JSON object, or SSE).
+fn serialize(messages: &[Value], is_sse: bool) -> Vec<u8> {
+    if is_sse {
+        messages
+            .iter()
+            .flat_map(|m| format!("event: message\ndata: {}\n\n", dumps(m)).into_bytes())
+            .collect()
+    } else {
+        messages
+            .first()
+            .map(|m| dumps(m).into_bytes())
+            .unwrap_or_default()
+    }
+}
+
+/// How a catalog reply is rewritten for a 2026-07-28 exchange.
+struct ModernList<'a> {
+    /// The agent is modern: the filtered list is per-mandate (`cacheScope: "private"`).
+    private: bool,
+    /// The upstream is modern: its `x-mcp-header` annotations, by public tool name.
+    /// A tool whose annotations are invalid is dropped, as the revision requires.
+    annotations: &'a mut Vec<(String, Vec<ParamHeader>)>,
+}
+
 fn rewrite_tools_list(
     upstream: &UpstreamResponse,
     allowed: &[&str],
     aliases: &HashMap<String, String>,
+    mut modern: Option<ModernList<'_>>,
 ) -> Result<(Vec<u8>, usize)> {
     let (mut messages, is_sse) = response_messages(
         upstream.status,
@@ -298,16 +343,32 @@ fn rewrite_tools_list(
             }
         }
         masked += filter_tools(payload, allowed);
+        let (Some(modern), Some(result)) = (
+            modern.as_mut(),
+            payload.get_mut("result").and_then(Value::as_object_mut),
+        ) else {
+            continue;
+        };
+        if let Some(tools) = result.get_mut("tools").and_then(Value::as_array_mut) {
+            let before = tools.len();
+            tools.retain(|tool| match era::param_headers(tool) {
+                Ok(found) => {
+                    let name = tool.get("name").and_then(Value::as_str).unwrap_or("");
+                    modern.annotations.push((name.to_owned(), found));
+                    true
+                }
+                Err(_) => false,
+            });
+            masked += before - tools.len();
+        }
+        if modern.private {
+            era::mark_private(result);
+            result
+                .entry("resultType")
+                .or_insert_with(|| json!("complete"));
+        }
     }
-    let body = if is_sse {
-        messages
-            .iter()
-            .flat_map(|m| format!("event: message\ndata: {}\n\n", dumps(m)).into_bytes())
-            .collect()
-    } else {
-        dumps(&messages[0]).into_bytes()
-    };
-    Ok((body, masked))
+    Ok((serialize(&messages, is_sse), masked))
 }
 
 /// Re-serialize a `tools/call` with the upstream's own name for the tool. Only the body
@@ -469,22 +530,44 @@ async fn handle_inner(
                 break;
             }
         }
-        if !rates.clients.contains_key(&client) {
-            if rates.clients.len() >= MAX_CLIENTS {
-                return Ok(empty(StatusCode::TOO_MANY_REQUESTS));
+        if !rates.clients.contains_key(&client) && rates.clients.len() >= MAX_CLIENTS {
+            None
+        } else {
+            if !rates.clients.contains_key(&client) {
+                rates.order.push_back(client.clone());
+                rates.clients.insert(
+                    client.clone(),
+                    RateWindow {
+                        started: now,
+                        count: 0,
+                    },
+                );
             }
-            rates.order.push_back(client.clone());
-            rates.clients.insert(
-                client.clone(),
-                RateWindow {
-                    started: now,
-                    count: 0,
-                },
-            );
+            let window = rates.clients.get_mut(&client).expect("window");
+            window.count += 1;
+            Some((window.count > state.config.requests_per_minute).then_some(window.count))
         }
-        let window = rates.clients.get_mut(&client).expect("window");
-        window.count += 1;
-        (window.count > state.config.requests_per_minute).then_some(window.count)
+    };
+    let Some(exceeded) = exceeded else {
+        // Logged once a minute at most: a flood of new clients must not flood the log.
+        let log = {
+            let mut last = state.capacity_logged.lock().expect("capacity lock");
+            let due = last.is_none_or(|t| t + Duration::from_secs(60) <= now);
+            if due {
+                *last = Some(now);
+            }
+            due
+        };
+        if log {
+            ctx.deny(
+                "<client-cap>",
+                "tracked client capacity reached",
+                None,
+                None,
+            )
+            .await?;
+        }
+        return Ok(empty(StatusCode::TOO_MANY_REQUESTS));
     };
     if let Some(count) = exceeded {
         if count == state.config.requests_per_minute + 1 {
@@ -506,12 +589,41 @@ async fn handle_inner(
             .await?;
         return Ok(empty(StatusCode::FORBIDDEN));
     }
-    if let Some(version) = headers.get("mcp-protocol-version")
-        && !version.is_empty()
-        && version != policy.mcp.spec_version
+    let header_version = headers
+        .get("mcp-protocol-version")
+        .filter(|v| !v.is_empty())
+        .map(str::to_owned);
+    if let Some(version) = &header_version
+        && !policy.mcp.accepts(version)
     {
-        return Ok(empty(StatusCode::BAD_REQUEST));
+        let cid = correlation_id();
+        let mut detail = ctx.detail().unwrap_or_default();
+        detail.insert(
+            "requested".into(),
+            json!(version.chars().take(64).collect::<String>()),
+        );
+        ctx.deny(
+            "<protocol-version>",
+            "unsupported MCP-Protocol-Version",
+            Some(&cid),
+            Some(detail),
+        )
+        .await?;
+        let supported: Vec<&str> = policy
+            .mcp
+            .spec_versions
+            .iter()
+            .map(String::as_str)
+            .collect();
+        return Ok(json_response(
+            StatusCode::BAD_REQUEST,
+            &unsupported_version(Value::Null, &supported, version, &cid),
+        ));
     }
+    // A 2026-07-28 request has no session: its `Mcp-Session-Id` is ignored.
+    let header_modern = header_version
+        .as_deref()
+        .is_some_and(|v| MODERN_SPEC_VERSIONS.contains(&v));
 
     let upstream = state
         .upstreams
@@ -526,7 +638,10 @@ async fn handle_inner(
         let mut sessions = state.sessions.lock().expect("sessions lock");
         sessions.purge(now);
     }
-    if let Some(session_id) = headers.get("mcp-session-id").filter(|s| !s.is_empty()) {
+    if let Some(session_id) = headers
+        .get("mcp-session-id")
+        .filter(|s| !s.is_empty() && !header_modern)
+    {
         if session_id.chars().count() > 256 {
             return Err(Error::value("invalid session id"));
         }
@@ -682,6 +797,48 @@ async fn handle_inner(
     }
     let request_id = message.get("id").cloned();
 
+    // -- MCP 2026-07-28: headers checked against the body, before any decision --------
+    let modern = header_modern || era::body_version(&message).is_some();
+    let called_tool = message
+        .get("params")
+        .and_then(|p| p.get("name"))
+        .and_then(Value::as_str)
+        .filter(|_| method == "tools/call")
+        .map(str::to_owned);
+    let known_params = called_tool.as_ref().and_then(|tool| {
+        state
+            .param_headers
+            .lock()
+            .expect("param headers lock")
+            .get(&(endpoint.clone(), tool.clone()))
+            .cloned()
+    });
+    if modern {
+        let mismatch = era::check_headers(&message, &headers, known_params.as_deref())
+            .err()
+            .map(|reason| (reason, era::HEADER_MISMATCH, "Header mismatch"))
+            .or_else(|| {
+                (!era::has_client_capabilities(&message)).then(|| {
+                    (
+                        "_meta clientCapabilities missing".to_owned(),
+                        era::INVALID_PARAMS,
+                        "invalid params",
+                    )
+                })
+            });
+        if let Some((reason, code, text)) = mismatch {
+            let cid = correlation_id();
+            let mut detail = ctx.detail().unwrap_or_default();
+            detail.insert("method".into(), json!(method));
+            ctx.deny("<header-mismatch>", &reason, Some(&cid), Some(detail))
+                .await?;
+            return Ok(json_response(
+                StatusCode::BAD_REQUEST,
+                &error_response(request_id.clone().unwrap_or(Value::Null), code, text, &cid),
+            ));
+        }
+    }
+
     let refuse = |reason: String, code: i64| {
         let ctx = &ctx;
         let method = method.clone();
@@ -701,6 +858,29 @@ async fn handle_inner(
         }
     };
 
+    // Multi round-trip replies and tasks reach no upstream until policy can govern them.
+    let params_map = message.get("params").and_then(Value::as_object);
+    if let Some(key) = ["task", "inputResponses", "requestState"]
+        .into_iter()
+        .find(|k| params_map.is_some_and(|p| p.contains_key(*k)))
+    {
+        return refuse(
+            format!("params.{key}: tasks and multi round-trip requests are not enabled"),
+            NOT_ENABLED,
+        )
+        .await;
+    }
+    if modern && era::LEGACY_ONLY_METHODS.contains(&method.as_str()) {
+        return refuse(
+            format!(
+                "method {} does not exist in MCP 2026-07-28",
+                py_repr(&method)
+            ),
+            METHOD_NOT_FOUND,
+        )
+        .await;
+    }
+
     if method != "tools/call" && upstream.requires_user_credentials() {
         let verifier = state.config.verifier.clone();
         let incoming = headers.clone();
@@ -718,6 +898,74 @@ async fn handle_inner(
             }
         }
     }
+
+    // -- upstream era -------------------------------------------------------------------
+    // `upstream_version`: the revision declared to a modern upstream; `None` relays in
+    // the `initialize` era exactly as before.
+    let cached_era = state
+        .eras
+        .lock()
+        .expect("eras lock")
+        .get(&endpoint)
+        .cloned();
+    let upstream_era = match cached_era {
+        Some(found) => Some(found),
+        None if modern => {
+            let mut principal = forward_headers.principal.clone();
+            if principal.is_none() && upstream.requires_user_credentials() {
+                let verifier = state.config.verifier.clone();
+                let incoming = headers.clone();
+                principal =
+                    tokio::task::spawn_blocking(move || verifier.session_principal(&incoming))
+                        .await
+                        .map_err(|e| Error::runtime(e.to_string()))?
+                        .ok();
+            }
+            Some(ensure_era(state, &endpoint, &upstream, &policy, principal).await?)
+        }
+        None => None,
+    };
+    let upstream_version: Option<String> = match (&upstream_era, modern) {
+        (Some(Era::Legacy), true) => {
+            // A dual-era agent falls back to `initialize` on this error.
+            let cid = correlation_id();
+            ctx.deny(
+                &method,
+                "upstream speaks an initialize-era MCP revision",
+                Some(&cid),
+                ctx.detail(),
+            )
+            .await?;
+            let requested = era::body_version(&message)
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned();
+            return Ok(json_response(
+                StatusCode::BAD_REQUEST,
+                &unsupported_version(
+                    request_id.clone().unwrap_or(Value::Null),
+                    &policy.mcp.legacy_versions(),
+                    &requested,
+                    &cid,
+                ),
+            ));
+        }
+        (_, true) => era::body_version(&message)
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        (Some(Era::Modern { versions, .. }), false) => match common_version(&policy, versions) {
+            Some(version) => Some(version),
+            None => {
+                return refuse(
+                    "no MCP revision shared with the upstream".into(),
+                    NOT_ENABLED,
+                )
+                .await;
+            }
+        },
+        _ => None,
+    };
+    let translated = upstream_version.is_some() && !modern;
 
     let mut outgoing: Vec<u8> = raw.clone();
     let empty_params = Value::Object(Map::new());
@@ -809,10 +1057,13 @@ async fn handle_inner(
         if !allowed && mode != "warn-only" {
             return Ok(match &request_id {
                 None => empty(StatusCode::ACCEPTED),
-                Some(id) => json_response(
-                    StatusCode::OK,
-                    &deny_result(id.clone(), cid.as_deref().unwrap_or_default()),
-                ),
+                Some(id) => {
+                    let mut denial = deny_result(id.clone(), cid.as_deref().unwrap_or_default());
+                    if modern {
+                        denial["result"]["resultType"] = json!("complete");
+                    }
+                    json_response(StatusCode::OK, &denial)
+                }
             });
         }
         if let Some(decision) = decision.as_ref().filter(|d| d.allow) {
@@ -831,9 +1082,9 @@ async fn handle_inner(
             ..Default::default()
         })
         .await?;
-        let response = upstream
-            .forward("POST", Bytes::from(raw), &forward_headers)
-            .await?;
+        let (body, sent) = prepare(&raw, upstream_version.as_deref(), &headers, None)?;
+        forward_headers.incoming = sent;
+        let response = upstream.forward("POST", body, &forward_headers).await?;
         let (messages, _) = response_messages(
             response.status,
             response.header("content-type"),
@@ -851,7 +1102,19 @@ async fn handle_inner(
             .filter(|t| allowed.contains(&t.name.as_str()))
             .filter_map(|t| t.upstream_tool.clone().map(|u| (u, t.name.clone())))
             .collect();
-        let (body, masked) = rewrite_tools_list(&response, &allowed, &aliases)?;
+        let mut annotations = Vec::new();
+        let list_mode = upstream_version.as_ref().map(|_| ModernList {
+            private: modern,
+            annotations: &mut annotations,
+        });
+        let (body, masked) = rewrite_tools_list(&response, &allowed, &aliases, list_mode)?;
+        if upstream_version.is_some() {
+            let mut known = state.param_headers.lock().expect("param headers lock");
+            known.retain(|(e, _), _| *e != endpoint);
+            for (tool, found) in annotations {
+                known.insert((endpoint.clone(), tool), found);
+            }
+        }
         let mut detail = ctx.detail().unwrap_or_default();
         if masked > 0 {
             detail.insert("tools_masked".into(), json!(masked));
@@ -863,21 +1126,13 @@ async fn handle_inner(
             ..Default::default()
         })
         .await?;
-        return Ok(relay(&response, Some(body)));
-    } else if policy.method_allowed(&method) {
-        // -- allow-listed session methods ---------------------------------------------
-        if method == "initialize" {
-            let mut rewritten = message.clone();
-            let mut params = rewritten
-                .get("params")
-                .and_then(Value::as_object)
-                .cloned()
-                .unwrap_or_default();
-            params.insert("protocolVersion".into(), json!(policy.mcp.spec_version));
-            params.insert("capabilities".into(), json!({}));
-            rewritten.insert("params".into(), Value::Object(params));
-            outgoing = dumps(&Value::Object(rewritten)).into_bytes();
+        let mut reply = relay(&response, Some(body));
+        if modern {
+            reply.headers_mut().remove("mcp-session-id");
         }
+        return Ok(reply);
+    } else if method == "server/discover" && modern {
+        // -- server/discover: relayed, reduced to tools ------------------------------
         ctx.audit(Record {
             decision: "ALLOW".into(),
             method: Some(method.clone()),
@@ -885,6 +1140,41 @@ async fn handle_inner(
             ..Default::default()
         })
         .await?;
+    } else if policy.method_allowed(&method) {
+        // -- allow-listed session methods ---------------------------------------------
+        ctx.audit(Record {
+            decision: "ALLOW".into(),
+            method: Some(method.clone()),
+            detail: ctx.detail(),
+            ..Default::default()
+        })
+        .await?;
+        if translated {
+            // A modern upstream has no handshake: the gateway answers it itself.
+            if let Some(local) = local_answer(&method, &message, &policy, upstream_era.as_ref())? {
+                return Ok(local);
+            }
+        } else if method == "initialize" {
+            let legacy = policy.mcp.legacy_versions();
+            let requested = message
+                .get("params")
+                .and_then(|p| p.get("protocolVersion"))
+                .and_then(Value::as_str)
+                .filter(|v| legacy.contains(v));
+            let Some(version) = requested.or_else(|| legacy.first().copied()) else {
+                return Err(Error::value("no initialize-era MCP revision is accepted"));
+            };
+            let mut rewritten = message.clone();
+            let mut params = rewritten
+                .get("params")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+            params.insert("protocolVersion".into(), json!(version));
+            params.insert("capabilities".into(), json!({}));
+            rewritten.insert("params".into(), Value::Object(params));
+            outgoing = dumps(&Value::Object(rewritten)).into_bytes();
+        }
     } else {
         // -- everything else: default deny ---------------------------------------------
         return refuse(
@@ -894,10 +1184,38 @@ async fn handle_inner(
         .await;
     }
 
-    let response = upstream
-        .forward("POST", Bytes::from(outgoing), &forward_headers)
+    let (body, sent) = prepare(
+        &outgoing,
+        upstream_version.as_deref(),
+        &headers,
+        known_params.as_deref(),
+    )?;
+    forward_headers.incoming = sent;
+    let response = upstream.forward("POST", body, &forward_headers).await?;
+
+    // A legacy agent's `initialize` refused by an upstream of unknown era: a modern-only
+    // server answers no handshake. Probe it; if modern, answer in its place.
+    if method == "initialize"
+        && upstream_era.is_none()
+        && !policy.mcp.modern_versions().is_empty()
+        && !initialize_succeeded(&response)
+    {
+        let found = ensure_era(
+            state,
+            &endpoint,
+            &upstream,
+            &policy,
+            forward_headers.principal.clone(),
+        )
         .await?;
-    let (mut messages, _) = response_messages(
+        if matches!(found, Era::Modern { .. })
+            && let Some(local) = local_answer(&method, &message, &policy, Some(&found))?
+        {
+            return Ok(local);
+        }
+    }
+
+    let (mut messages, is_sse) = response_messages(
         response.status,
         response.header("content-type"),
         &response.body,
@@ -907,6 +1225,41 @@ async fn handle_inner(
     {
         return Err(Error::value("unpaired upstream response"));
     }
+    if upstream_version.is_some() {
+        // -- a modern upstream's reply ------------------------------------------------
+        for message in &messages {
+            let kind = message
+                .get("result")
+                .and_then(|r| r.get("resultType"))
+                .and_then(Value::as_str)
+                .unwrap_or("complete");
+            if kind != "complete" {
+                return refuse(
+                    format!(
+                        "upstream returned resultType {}; tasks and multi round-trip requests are not enabled",
+                        py_repr(kind)
+                    ),
+                    NOT_ENABLED,
+                )
+                .await;
+            }
+        }
+        if modern {
+            for message in &mut messages {
+                if let Some(result) = message.get_mut("result").and_then(Value::as_object_mut) {
+                    result
+                        .entry("resultType")
+                        .or_insert_with(|| json!("complete"));
+                    if method == "server/discover" {
+                        reduce_discover(result, &policy);
+                    }
+                }
+            }
+        }
+        let mut reply = relay(&response, Some(serialize(&messages, is_sse)));
+        reply.headers_mut().remove("mcp-session-id");
+        return Ok(reply);
+    }
     remember_session(state, &endpoint, &headers, &response, now).await?;
     if method == "initialize"
         && let Some(result) = messages
@@ -914,30 +1267,23 @@ async fn handle_inner(
             .and_then(|m| m.get_mut("result"))
             .and_then(Value::as_object_mut)
     {
-        let negotiated = result
-            .get("protocolVersion")
+        let sent: Value = strict_json(&outgoing)?;
+        let requested = sent
+            .pointer("/params/protocolVersion")
             .cloned()
-            .unwrap_or_else(|| json!(policy.mcp.spec_version));
-        if negotiated != json!(policy.mcp.spec_version) {
+            .unwrap_or(Value::Null);
+        let negotiated = result.get("protocolVersion").cloned().unwrap_or(requested);
+        let accepted = negotiated
+            .as_str()
+            .is_some_and(|v| policy.mcp.legacy_versions().contains(&v));
+        if !accepted {
             return Err(Error::value(
-                "upstream did not negotiate the supported MCP version",
+                "upstream did not negotiate a supported MCP version",
             ));
         }
         if let Some(capabilities) = result.get("capabilities") {
-            let has_tools = match capabilities {
-                Value::Object(map) => map.contains_key("tools"),
-                Value::Array(items) => items.contains(&json!("tools")),
-                Value::String(s) => s.contains("tools"),
-                _ => false,
-            };
-            result.insert(
-                "capabilities".into(),
-                if has_tools {
-                    json!({"tools": {}})
-                } else {
-                    json!({})
-                },
-            );
+            let reduced = era::tools_only(Some(capabilities));
+            result.insert("capabilities".into(), reduced);
         }
         let mut reply = json_response(
             StatusCode::from_u16(response.status).unwrap_or(StatusCode::OK),
@@ -947,6 +1293,259 @@ async fn handle_inner(
         return Ok(reply);
     }
     Ok(relay(&response, None))
+}
+
+/// The body and headers sent upstream. In the `initialize` era the body is unchanged and
+/// no 2026-07-28 mirror header is passed on. To a modern upstream, `_meta` declares
+/// `version` with the client capabilities the gateway allows (none), and every mirror
+/// header is recomputed from that body — after any `rename_tool`.
+fn prepare(
+    outgoing: &[u8],
+    version: Option<&str>,
+    incoming: &Headers,
+    params: Option<&[ParamHeader]>,
+) -> Result<(Bytes, Headers)> {
+    let Some(version) = version else {
+        return Ok((
+            Bytes::from(outgoing.to_vec()),
+            era::legacy_forward(incoming),
+        ));
+    };
+    let Value::Object(mut message) = strict_json(outgoing)? else {
+        return Err(Error::value("request body is not a JSON-RPC object"));
+    };
+    // Mirrors an `initialize`-era agent sent were never checked: none is passed on.
+    let base = if era::body_version(&message).is_some() {
+        incoming.clone()
+    } else {
+        era::legacy_forward(incoming)
+    };
+    era::set_meta(&mut message, version);
+    let headers = era::modern_forward(&base, &message, params);
+    Ok((
+        Bytes::from(dumps(&Value::Object(message)).into_bytes()),
+        headers,
+    ))
+}
+
+/// The first revision of the policy's modern list the upstream also supports.
+fn common_version(policy: &Policy, upstream_versions: &[String]) -> Option<String> {
+    policy
+        .mcp
+        .modern_versions()
+        .into_iter()
+        .find(|v| upstream_versions.iter().any(|u| u == v))
+        .map(str::to_owned)
+}
+
+fn unsupported_version(id: Value, supported: &[&str], requested: &str, cid: &str) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": {
+            "code": era::UNSUPPORTED_PROTOCOL_VERSION,
+            "message": "Unsupported protocol version",
+            "data": {
+                "supported": supported,
+                "requested": requested.chars().take(64).collect::<String>(),
+                "correlation_id": cid,
+            },
+        },
+    })
+}
+
+/// A `DiscoverResult` as the gateway presents it: tools only, the revisions both the
+/// policy and the upstream accept (plus the `initialize` ones the gateway translates),
+/// and private, briefly cached.
+fn reduce_discover(result: &mut Map<String, Value>, policy: &Policy) {
+    let capabilities = era::tools_only(result.get("capabilities"));
+    result.insert("capabilities".into(), capabilities);
+    let upstream: Vec<String> = result
+        .get("supportedVersions")
+        .and_then(Value::as_array)
+        .map(|v| {
+            v.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut versions: Vec<&str> = policy
+        .mcp
+        .modern_versions()
+        .into_iter()
+        .filter(|v| upstream.iter().any(|u| u == v))
+        .collect();
+    versions.extend(policy.mcp.legacy_versions());
+    result.insert("supportedVersions".into(), json!(versions));
+    era::mark_private(result);
+}
+
+/// True when an `initialize` reply is a successful JSON-RPC result.
+fn initialize_succeeded(response: &UpstreamResponse) -> bool {
+    response.status < 400
+        && response_messages(
+            response.status,
+            response.header("content-type"),
+            &response.body,
+        )
+        .is_ok_and(|(m, _)| m.first().is_some_and(|m| m.get("result").is_some()))
+}
+
+/// The gateway's own answer to a legacy agent's handshake methods when the upstream is
+/// modern; `None` for methods that are relayed.
+fn local_answer(
+    method: &str,
+    message: &Map<String, Value>,
+    policy: &Policy,
+    upstream_era: Option<&Era>,
+) -> Result<Option<Response>> {
+    let id = message.get("id").cloned().unwrap_or(Value::Null);
+    match method {
+        "initialize" => {
+            let legacy = policy.mcp.legacy_versions();
+            let requested = message
+                .get("params")
+                .and_then(|p| p.get("protocolVersion"))
+                .and_then(Value::as_str)
+                .filter(|v| legacy.contains(v));
+            let Some(version) = requested.or_else(|| legacy.first().copied()) else {
+                return Err(Error::value("no initialize-era MCP revision is accepted"));
+            };
+            let discover = match upstream_era {
+                Some(Era::Modern {
+                    discover: Some(d), ..
+                }) => d.clone(),
+                _ => Map::new(),
+            };
+            let mut result = Map::new();
+            result.insert("protocolVersion".into(), json!(version));
+            result.insert(
+                "capabilities".into(),
+                era::tools_only(discover.get("capabilities")),
+            );
+            result.insert(
+                "serverInfo".into(),
+                discover
+                    .get("_meta")
+                    .and_then(|m| m.get("io.modelcontextprotocol/serverInfo"))
+                    .cloned()
+                    .unwrap_or_else(
+                        || json!({"name": "tokencrumb", "version": env!("CARGO_PKG_VERSION")}),
+                    ),
+            );
+            if let Some(instructions) = discover.get("instructions") {
+                result.insert("instructions".into(), instructions.clone());
+            }
+            Ok(Some(json_response(
+                StatusCode::OK,
+                &json!({"jsonrpc": "2.0", "id": id, "result": result}),
+            )))
+        }
+        "notifications/initialized" => Ok(Some(empty(StatusCode::ACCEPTED))),
+        "ping" => Ok(Some(json_response(
+            StatusCode::OK,
+            &json!({"jsonrpc": "2.0", "id": id, "result": {}}),
+        ))),
+        _ => Ok(None),
+    }
+}
+
+/// The upstream's era: remembered, or detected once with a `server/discover` probe.
+async fn ensure_era(
+    state: &AppState,
+    endpoint: &Option<String>,
+    upstream: &SharedUpstream,
+    policy: &Policy,
+    principal: Option<crate::proxy::upstream::Principal>,
+) -> Result<Era> {
+    if let Some(found) = state.eras.lock().expect("eras lock").get(endpoint) {
+        return Ok(found.clone());
+    }
+    let found = probe_era(upstream, policy, principal).await?;
+    state
+        .eras
+        .lock()
+        .expect("eras lock")
+        .insert(endpoint.clone(), found.clone());
+    Ok(found)
+}
+
+/// Probe with `server/discover`. A `DiscoverResult` or a recognized modern error means
+/// modern; any other reply, or none in time, means legacy (and a stdio child is
+/// restarted, so the `initialize` that follows meets a fresh process). A transport
+/// failure is not an answer: it is returned, and nothing is remembered.
+async fn probe_era(
+    upstream: &SharedUpstream,
+    policy: &Policy,
+    principal: Option<crate::proxy::upstream::Principal>,
+) -> Result<Era> {
+    let Some(first) = policy
+        .mcp
+        .modern_versions()
+        .first()
+        .map(|v| (*v).to_owned())
+    else {
+        return Ok(Era::Legacy);
+    };
+    let mut version = first;
+    for _ in 0..2 {
+        let request = era::discover_request(&version);
+        let headers = ForwardHeaders {
+            incoming: era::modern_forward(
+                &Headers::default(),
+                request.as_object().expect("object"),
+                None,
+            ),
+            principal: principal.clone(),
+        };
+        let outcome = tokio::time::timeout(
+            PROBE_TIMEOUT,
+            upstream.forward("POST", Bytes::from(dumps(&request).into_bytes()), &headers),
+        )
+        .await;
+        let response = match outcome {
+            Ok(Ok(response)) => response,
+            Ok(Err(e)) if e.kind == ErrorKind::Io && e.message.starts_with("ConnectError") => {
+                return Err(e);
+            }
+            _ => {
+                upstream.close().await;
+                return Ok(Era::Legacy);
+            }
+        };
+        let first_message = response_messages(
+            response.status,
+            response.header("content-type"),
+            &response.body,
+        )
+        .ok()
+        .and_then(|(m, _)| m.into_iter().next());
+        match era::classify_discover(first_message.as_ref()) {
+            Some(Era::Modern {
+                versions,
+                discover: None,
+            }) => match common_version(policy, &versions) {
+                // Unsupported version: retry once with one both sides accept.
+                Some(retry) if retry != version => version = retry,
+                _ => {
+                    return Ok(Era::Modern {
+                        versions,
+                        discover: None,
+                    });
+                }
+            },
+            Some(found) => return Ok(found),
+            None => {
+                upstream.close().await;
+                return Ok(Era::Legacy);
+            }
+        }
+    }
+    Ok(Era::Modern {
+        versions: Vec::new(),
+        discover: None,
+    })
 }
 
 async fn remember_session(
@@ -1010,6 +1609,9 @@ pub fn create_app(config: ProxyConfig) -> Result<Router> {
         upstreams,
         rates: Mutex::new(Rates::default()),
         sessions: Mutex::new(Sessions::default()),
+        eras: Mutex::new(HashMap::new()),
+        param_headers: Mutex::new(HashMap::new()),
+        capacity_logged: Mutex::new(None),
     });
     let mut router = Router::new();
     for name in names {

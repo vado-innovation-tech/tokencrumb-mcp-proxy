@@ -449,7 +449,7 @@ pub async fn serve(options: ServeOptions) -> anyhow::Result<()> {
         options.policy.display(),
         policy.min_profile,
         &policy.policy_digest[..policy.policy_digest.len().min(12)],
-        policy.mcp.spec_version,
+        policy.mcp.spec_versions.join(", "),
         options.registry.as_deref().unwrap_or("-"),
         options.audit.display(),
         if options.reload_policy {

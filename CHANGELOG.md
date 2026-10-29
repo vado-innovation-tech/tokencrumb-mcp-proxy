@@ -4,6 +4,10 @@
 
 ### Added
 
+- Support MCP 2026-07-28 next to `2025-06-18` and `2025-11-25` (dual-era): `mcp.spec_version` accepts a list (a single string remains valid), the era of each agent request and of each upstream (`server/discover` probe) is detected, `initialize`-era agents are translated for 2026-07-28 upstreams, and 2026-07-28 agents meeting an `initialize`-era upstream receive `UnsupportedProtocolVersion` to fall back.
+- Check `MCP-Protocol-Version`, `Mcp-Method`, `Mcp-Name` and `Mcp-Param-*` against the body of 2026-07-28 requests before any decision (HTTP 400, `HeaderMismatch`), and recompute them from the forwarded body, including after `upstream_tool` renames. These names are reserved for upstream credentials.
+- Relay `server/discover` reduced to `tools`; mark filtered 2026-07-28 tool lists `cacheScope: "private"` with a short `ttlMs`; add `resultType` to every gateway result in 2026-07-28 mode; empty the per-request client capabilities; refuse multi round-trip requests and tasks with code −31001.
+- Record unsupported `MCP-Protocol-Version`, header mismatch and tracked-client-cap (429) refusals in the signed audit log.
 - Add third-party authorities: a `third_party:` policy section declares second signers and the predicates each may state, and `require_third_party` makes a tool need their endorsement, read from Biscuit third-party blocks through `trusting` checks. Undeclared signers, undelegated predicates, rules and reserved facts in those blocks refuse the mandate; denials name the missing endorsement and the audit records the endorsing authorities.
 - Add `third-party-request`, `third-party-sign` and `third-party-append`, `keygen --type third-party`, `inspect --json` with per-block external keys and revocation ids, and `revoke --block` to revoke a token from one block on, such as a single endorsement.
 - Add `dpop-proof` to generate agent-signed proofs for issuer HTTP requests.
@@ -14,6 +18,8 @@
 
 ### Changed
 
+- Ignore `Mcp-Session-Id` in 2026-07-28 requests and propagate session and `Last-Event-ID` headers only to `initialize`-era upstreams.
+- Answer an unsupported `MCP-Protocol-Version` with a JSON-RPC `UnsupportedProtocolVersion` error body listing the accepted revisions, instead of an empty 400.
 - Reload a file-backed client capability when its file changes.
 - Remove the draft-07 `$schema` declaration from tool input and output schemas returned by `tools/list`.
 - Name the project **TokenCrumb - MCP Proxy**, the package `tokencrumb-mcp-proxy` and the executable `tokencrumb`, preserving the versioned attestation and registry signature domains.

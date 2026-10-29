@@ -11,7 +11,11 @@ limits:
   max_time_ms: 10
   max_token_size: 16384
 mcp:
-  spec_version: "2025-06-18"
+  # Accepted revisions. A single string accepts exactly one.
+  spec_version: ["2025-06-18", "2025-11-25", "2026-07-28"]
+  # Relayed without a mandate. tools/call, tools/list and server/discover are
+  # handled separately; initialize, ping and notifications/initialized exist only
+  # in the initialize era.
   allow_methods:
     - initialize
     - ping
