@@ -14,7 +14,9 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
-use crate::attestation::build_attestation;
+use crate::approval::ApprovalDir;
+use crate::attestation::{biscuit_hash, build_attestation};
+use crate::canonical::arguments_hash;
 use crate::error::{Error, Result};
 use crate::json::{as_float, as_integer, dumps, strict_json};
 use crate::proxy::messages::{INTERNAL_ERROR, response_messages};
@@ -104,6 +106,8 @@ pub struct ClientTransport {
     /// The client's own `initialize` and `notifications/initialized`, kept to reopen a
     /// session when the mandate changes under a running client.
     handshake: Vec<String>,
+    /// `--approval-dir`: held calls are written there, receipts are read from there.
+    pub approvals: Option<ApprovalDir>,
 }
 
 impl ClientTransport {
@@ -123,6 +127,7 @@ impl ClientTransport {
             session: None,
             version: PROTOCOL_VERSION.into(),
             handshake: Vec::new(),
+            approvals: None,
         }
     }
 
@@ -212,8 +217,26 @@ impl ClientTransport {
                 build_attestation(&self.agent_id, tool, arguments, &self.token, private, None)?;
             request = request.set("Agent-Attestation", &header);
         }
+        // A receipt is attached only to the call it was deposited for: same tool,
+        // arguments and mandate as the request it answers.
+        let mut receipt: Option<std::path::PathBuf> = None;
+        if method == "tools/call"
+            && let Some(dir) = &self.approvals
+            && let (Some(Value::String(tool)), Some(arguments)) =
+                (params.get("name"), params.get("arguments").or(Some(&empty)))
+            && let Ok(hash) = arguments_hash(arguments)
+            && let Some((path, header)) = dir.find_receipt(tool, &hash, &biscuit_hash(&self.token))
+        {
+            request = request.set("Approval-Receipt", &header);
+            receipt = Some(path);
+        }
 
-        let response = match request.send_bytes(dumps(&message).as_bytes()) {
+        let sent = request.send_bytes(dumps(&message).as_bytes());
+        // Presented once, a receipt is consumed or refused: never present it again.
+        if let (Some(dir), Some(path)) = (&self.approvals, &receipt) {
+            let _ = dir.retire(path);
+        }
+        let response = match sent {
             Ok(response) => response,
             Err(ureq::Error::Status(status, _)) => {
                 if status == 404 {
@@ -255,6 +278,12 @@ impl ClientTransport {
             return Err(Error::value("response is not paired to request"));
         }
         let result = messages.into_iter().next().expect("one message");
+        if method == "tools/call"
+            && let Some(dir) = &self.approvals
+            && let Some(held) = crate::approval::approval_required(&result)
+        {
+            dir.save_request(&held)?;
+        }
         if method == "initialize"
             && let Some(outcome) = result.get("result")
         {
