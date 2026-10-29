@@ -11,6 +11,7 @@ use common::proxy::{
     verify,
 };
 use serde_json::{Value, json};
+use tokencrumb_mcp_proxy::attestation::build_attestation;
 use tokencrumb_mcp_proxy::biscuit_ops::{
     self, Attenuation, Endorse, ForgeRequest, append_third_party, attenuate, sign_third_party,
     sign_third_party_at, third_party_request,
@@ -379,6 +380,124 @@ fn a_third_party_cannot_reuse_a_root_key() {
     .err()
     .unwrap();
     assert!(error.message.contains("reuses a root authority key"));
+}
+
+/// A mandate for `read_file`, which needs no endorsement, with the agent's key anchored
+/// in block 0 or left to the registry, and the agent's signed call for it.
+fn agent_call(world: &World, anchored: bool) -> (String, String) {
+    let token = forge(
+        &world.authority.private_str,
+        ForgeRequest {
+            resource_prefix: Some("/projects/acme/".into()),
+            agent_pubkey: anchored.then(|| world.agent.public_str.clone()),
+            required_profile: if anchored {
+                "hardened_biscuit_anchored"
+            } else {
+                "registry_backed"
+            }
+            .into(),
+            ..mandate("agent-1", "read_file", "read", 600, 10)
+        },
+    );
+    let attestation = build_attestation(
+        "agent-1",
+        "read_file",
+        &json!({"path": Q3}),
+        &token,
+        &world.agent.private_str,
+        None,
+    )
+    .unwrap();
+    (token, attestation)
+}
+
+const AGENT_KEY_REUSED: &str = "third-party key is the agent key";
+
+#[tokio::test]
+async fn a_third_party_cannot_reuse_the_anchored_agent_key() {
+    use common::proxy::{FakeUpstream, bearer, post};
+    use tokencrumb_mcp_proxy::proxy::upstream::SharedUpstream;
+
+    let world = World::new();
+    let ally = generate_keypair();
+    let body = json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                      "params": {"name": "read_file", "arguments": {"path": Q3}}});
+    for (key, allowed) in [(&world.agent.public_str, false), (&ally.public_str, true)] {
+        let upstream = FakeUpstream::default_json();
+        let verifier = world.verifier(policy_for(&[key.as_str()]), None);
+        let app = world.proxy_with(
+            vec![(None, upstream.clone() as SharedUpstream)],
+            None,
+            verifier,
+            true,
+        );
+        let (token, attestation) = agent_call(&world, true);
+        post(
+            &app,
+            body.clone(),
+            &[
+                ("authorization", &bearer(&token)),
+                ("agent-attestation", &attestation),
+            ],
+        )
+        .await;
+        assert_eq!(upstream.reached(), allowed, "ally key {key}");
+        let entry = world.audit_entries().last().unwrap().clone();
+        if allowed {
+            assert_eq!(entry["decision"], "ALLOW", "{entry}");
+        } else {
+            assert_eq!(entry["decision"], "DENY");
+            assert!(
+                entry["reason"].as_str().unwrap().contains(AGENT_KEY_REUSED),
+                "{entry}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_third_party_cannot_reuse_the_registry_agent_key() {
+    let world = World::new();
+    // A registry answering in uppercase hex still names the same key.
+    let agent_public = world
+        .agent
+        .public_str
+        .to_ascii_uppercase()
+        .replace("ED25519/", "ed25519/");
+    let mut options = VerifierOptions::new(TEST_AUDIENCE);
+    options.resolve_agent_pubkey = Some(Box::new(move |id: &str| {
+        (id == "agent-1").then(|| agent_public.clone())
+    }));
+    let verifier = world.verifier(policy_for(&[&world.agent.public_str]), Some(options));
+    let (token, attestation) = agent_call(&world, false);
+    let decision = verify(
+        &verifier,
+        "read_file",
+        json!({"path": Q3}),
+        &biscuit_headers(&token, Some(&attestation)),
+    );
+    denied(&decision, AGENT_KEY_REUSED);
+    assert_eq!(decision.profile, "registry_backed");
+}
+
+#[test]
+fn a_previous_third_party_key_cannot_be_the_agent_key() {
+    let world = World::new();
+    let current = generate_keypair();
+    let verifier = world.verifier(
+        policy_for(&[&current.public_str, &world.agent.public_str]),
+        None,
+    );
+    let (token, attestation) = agent_call(&world, true);
+    denied(
+        &verify(
+            &verifier,
+            "read_file",
+            json!({"path": Q3}),
+            &biscuit_headers(&token, Some(&attestation)),
+        ),
+        AGENT_KEY_REUSED,
+    );
 }
 
 #[test]
