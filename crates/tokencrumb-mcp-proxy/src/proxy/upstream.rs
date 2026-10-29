@@ -17,7 +17,8 @@ use crate::error::{Error, ErrorKind, Result};
 use crate::json::{dumps, strict_json};
 use crate::verifier::Headers;
 
-/// Session headers relayed to the upstream as-is.
+/// Session headers relayed to the upstream as-is. The gateway drops the session and
+/// resume headers before forwarding to an MCP 2026-07-28 upstream.
 pub const PROPAGATE: &[&str] = &["mcp-protocol-version", "mcp-session-id", "last-event-id"];
 pub const MAX_RESPONSE: usize = 4 * 1024 * 1024;
 
@@ -30,7 +31,14 @@ const RESERVED: &[&str] = &[
     "mcp-protocol-version",
     "mcp-session-id",
     "last-event-id",
+    "mcp-method",
+    "mcp-name",
 ];
+
+fn reserved(name: &str) -> bool {
+    let name = name.to_ascii_lowercase();
+    RESERVED.contains(&name.as_str()) || name.starts_with(crate::proxy::era::PARAM_PREFIX)
+}
 
 /// The verified principal a call runs as: `(issuer, subject)` of its mandate.
 pub type Principal = (Option<String>, Option<String>);
@@ -96,7 +104,7 @@ pub struct HttpUpstream {
 }
 
 fn check_credential(name: &str, value: &str) -> Result<()> {
-    if RESERVED.contains(&name.to_ascii_lowercase().as_str()) {
+    if reserved(name) {
         return Err(Error::value(
             "upstream credential cannot override transport/session headers",
         ));
@@ -188,6 +196,12 @@ impl HttpUpstream {
         for name in PROPAGATE {
             if let Some(value) = headers.incoming.get(name).filter(|v| !v.is_empty()) {
                 outgoing.push(((*name).into(), value.to_owned()));
+            }
+        }
+        // MCP 2026-07-28 mirrors: the gateway recomputes them from the forwarded body.
+        for (name, value) in &headers.incoming.0 {
+            if crate::proxy::era::is_mirrored(name) && !value.is_empty() {
+                outgoing.push((name.clone(), value.clone()));
             }
         }
         let mut set = |name: &str, value: &str| match outgoing.iter_mut().find(|(k, _)| k == name) {

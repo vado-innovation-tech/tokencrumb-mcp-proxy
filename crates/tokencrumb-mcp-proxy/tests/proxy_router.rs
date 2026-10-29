@@ -430,7 +430,9 @@ async fn protocol_version_and_origin_are_checked_before_anything() {
     let reply = post(&app, ping, &[("origin", "https://evil.example")]).await;
     assert_eq!(reply.status, StatusCode::FORBIDDEN);
     assert!(!upstream.reached());
-    assert_eq!(w.audit_entries()[0]["method"], json!("<origin>"));
+    let entries = w.audit_entries();
+    assert_eq!(entries[0]["method"], json!("<protocol-version>"));
+    assert_eq!(entries[1]["method"], json!("<origin>"));
 }
 
 #[tokio::test]
