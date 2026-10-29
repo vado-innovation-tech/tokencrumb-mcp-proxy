@@ -269,6 +269,67 @@ tokencrumb third-party-append --token state/capability.b64 \
 
 `revoke --from-token <token> --block <index>` revokes a single endorsement: every token carrying that block, including later attenuations, is refused, while the mandate as it was before the endorsement stays valid and can be endorsed again.
 
+### Human approval (HOLD)
+
+A tool can require a person's approval of each exact call. The approval never grants anything: the call must pass every other check first — mandate, profile, attestation, policy, endorsements and budget. Only then does the gateway look for a **receipt**, an Ed25519 signature by a registered approver over the hash of the call's intent. Without one, the call is **held**: it is not forwarded, not charged, and the client receives the intent to approve.
+
+```yaml
+approvers:
+  ops:
+    members:
+      - id: a.dupont
+        keys: [ed25519/<current key>, ed25519/<previous key>]
+      - id: b.martin
+        keys: [ed25519/<key>]
+tools:
+  - name: delete_file
+    operation: write
+    resource:
+      from: arguments.path
+    allow:
+      resource_prefix: /workspace/
+      budget: 20
+    require: [call_signature_valid, nonce_fresh, arguments_bound]
+    approval:
+      approvers: [ops]
+      receipt_ttl: 5m
+```
+
+See [policy-approval.yaml](policy-approval.yaml). Each member has one to eight keys, and a key belongs to one member in the whole policy. An approver key cannot be a root authority key, a third-party authority key or the audit key: startup fails, and so does a reload. `receipt_ttl` is between one second and one hour. A tool under `approval` must require the three proofs above, since the intent contains the agent key and the arguments hash bound by the attestation. The gateway refuses to start a policy with approvals without persistent state; `serve` keeps receipts in the nonce database.
+
+**The intent** is `{"v": 1, tool, operation, resource, arguments_hash, mandate_hash, agent_id, agent_key, audience}`: the public tool name, the policy operation, the canonical resource or `null`, the argument and mandate hashes the attestation binds, the identity from the authority block and the gateway audience. `intent_hash` is `sha256:` followed by the hex SHA-256 of its JCS form. Any change to an argument, the resource, the tool or the presented mandate changes the hash.
+
+**The held call** is answered with a tool result marked `isError: true`. Its first text block reads `APPROVAL REQUIRED — request <request_id> · correlation_id: …`; its second, and `structuredContent`, carry `{"approval_required": {request_id, intent, intent_hash, arguments, approvers, expires_at}}`. The attestation nonce is consumed; the replay needs a new attestation. The audit records a `HOLD` entry with `request_id`, `intent_hash` and the approver groups. `request_id` and `expires_at` are informative: the gateway keeps no request state.
+
+**The receipt** is `{v: 1, receipt_id, request_id, intent_hash, decision: "approve", approver: {id, key}, issued_at, expires_at, max_uses: 1, sig}`, signed over its JCS form without `sig`. The client sends it base64url-encoded in the `approval-receipt` header, at most 4 KiB; like every non-session header it never reaches the upstream. The gateway decodes it, checks that the key belongs to the named member of a group listed for the tool, that it is not the agent key, the signature, the intent hash recomputed from the actual call, and the dates (`issued_at` not in the future beyond `clock_skew_seconds`, not expired, lifetime within `receipt_ttl`). It then consumes `receipt_id` in a durable table under an exclusive transaction, charges the budget, records `ALLOW` with `detail.approval` and forwards. A second use, concurrent or after a restart, is refused. Refusals are recorded as `receipt malformed`, `receipt signer not registered for this tool`, `receipt signed by the agent key`, `receipt signature invalid`, `receipt intent mismatch`, `receipt issued in the future`, `receipt expired`, `receipt lifetime exceeds policy`, `receipt already used` or `receipt store full`.
+
+**The outcome** of an approved call is recorded as an `OUTCOME` entry with its `receipt_id` and `state`: `ok` when the tool answered (an `isError` result included), `upstream_error` for a JSON-RPC or HTTP error before any result, `unknown` when no usable answer came back. A consumed receipt holds a lease for the call in flight; at startup and periodically, a row still reserved after its lease is settled `unknown`. A row whose lease still runs belongs to another live process sharing the database and is left alone. The receipt stays consumed in every case, and an unknown outcome needs a new approval.
+
+`mode: warn-only` does not relax approval: a call to a tool under `approval` is never forwarded without a consumed receipt, and refused receipts are enforced.
+
+```sh
+tokencrumb keygen --type approver --out state/a.dupont
+tokencrumb client-wrap --proxy http://127.0.0.1:9443/mcp --token state/capability.b64 \
+  --agent-key state/agent.key --approval-dir state/approvals
+# A held call is written to state/approvals/requests/<request_id>.json.
+tokencrumb approve --request state/approvals/requests/<request_id>.json \
+  --key state/a.dupont.key --approver-id a.dupont --ttl 5m \
+  --out state/approvals/receipts/<request_id>.json
+tokencrumb inspect-receipt --receipt state/approvals/receipts/<request_id>.json
+```
+
+`approve` refuses a request whose arguments do not match `arguments_hash` or whose intent does not match `intent_hash`, and an unknown intent version. It displays the tool, operation, resource, canonical arguments, agent, mandate hash and audience, escaping control characters (ANSI and OSC sequences included) and reporting invisible or direction-changing characters, then signs after confirmation (`--yes` skips it, for scripts). `client-wrap` cannot recompute the intent, which depends on the gateway policy: it attaches a receipt only to a replay with the same tool, arguments hash and mandate hash as the request it answers, then moves the receipt to `used/`.
+
+Limits of this first version:
+
+- The approver signs what is displayed. The gateway checks that the receipt matches the call, not how the decision was made.
+- The receipt binds the call, not its effect: between approval and execution a path can come to designate something else, since canonicalization does not resolve symlinks.
+- The receipt binds the mandate as presented. Reloading or refreshing the mandate, attenuating it or appending an endorsement makes the receipt unusable; a new approval is needed.
+- The tool definition is not part of the intent: an upstream changing a tool's semantics between approval and execution is not detected.
+- Single use holds for one host, like nonces and budgets.
+- A refusal by the approver leaves no trace at the gateway: the request simply expires.
+- A held call costs no budget and held requests are not capped: an agent can multiply them and grow the audit log.
+
 ### Reload and revocation
 
 Enable `--reload-policy` and publish validated updates atomically:
@@ -285,13 +346,15 @@ Run `tokencrumb --help` or `tokencrumb <command> --help` for all flags. Usage er
 
 | Command | Purpose |
 | --- | --- |
-| `keygen` | Generate authority, agent, audit or third-party Ed25519 keys. |
+| `keygen` | Generate authority, agent, audit, third-party or approver Ed25519 keys. |
 | `forge` | Sign an authority capability for a tool, with audience, expiry and optional scope. |
 | `attenuate` | Append restrictions without the authority private key. |
 | `inspect` | Decode blocks and metadata without establishing trust; `--json` for tools. |
 | `third-party-request` | Print the endorsement request bound to a token. |
 | `third-party-sign` | Sign an endorsement block for a request, as a third-party authority. |
 | `third-party-append` | Append a signed endorsement block and check its signer. |
+| `approve` | Show a held call, recompute its hashes and sign a single-use approval receipt. |
+| `inspect-receipt` | Decode an approval receipt and check its signature offline. |
 | `serve` | Run the authorization proxy. |
 | `client-wrap` | Adapt a stdio MCP client to the proxy and sign tool calls. |
 | `bootstrap` | Validate an issuer URL or verify a returned token against a provisioned trust anchor. |
@@ -445,6 +508,7 @@ The default policy requires `hardened_biscuit_anchored`. A stolen capability alo
 | Token for another deployment or route | Audience and upstream checks | `audience_upstream`, `multi_upstream` |
 | Broader delegation | Append-only restrictions and tightest signed bounds | `delegation_depth`, `tool_attenuation` |
 | Forged, replayed or overreaching endorsement | External signature bound to the token, declared keys, delegated predicates, `trusting` checks | `third_party` |
+| Unapproved, altered or replayed confirmed call | Receipt bound to the call's intent, registered approver keys, durable single-use consumption | `approval` |
 | Budget reset after attenuation or restart | Root-based counters and durable state | `budget_two_level`, `budget_persist`, `one_shot` |
 | Policy or parser confusion | Strict JSON/YAML, typed metadata and bounded Datalog | `security_configuration`, `security_contract`, `datalog_limits` |
 | Hidden protocol route | Explicit MCP method handling | `proxy_router`, `security_http_audit` |
@@ -456,6 +520,7 @@ These tests establish specific local behaviors, not a certification of any deplo
 
 - An operator controlling the host can change policy, keys, code, clock or persistent state. Cryptography does not make that operator untrusted by default.
 - An issuer holding a trusted authority private key can issue new capabilities. Accepting several roots means any accepted root can authorize; it is not a quorum.
+- A human approver decides only what is displayed to them; see the [approval limits](#human-approval-hold). A held call costs no budget and held requests are not capped.
 - A third-party authority decides only what it signs. The proxy checks the endorsement's tool, resource prefix and expiry, not how the third party reached its decision; protect its private key like an authority key.
 - An agent with valid keys can abuse any operation actually granted to it. The proxy does not make model output truthful or prevent prompt injection from selecting an allowed tool.
 - Resource mappings depend on upstream semantics. Canonicalizing a path does not resolve symlinks or prove what a remote tool will read.
