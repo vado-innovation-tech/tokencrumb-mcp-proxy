@@ -210,6 +210,25 @@ fn third_party_separated(policy: &Policy, authority_keys: &[String]) -> Result<(
     Ok(())
 }
 
+/// A third-party key must never also be the agent's key: the agent could then sign the
+/// endorsements a tool requires of someone else. Rotation keys count; the comparison is
+/// the one used for root keys.
+fn third_party_not_agent(policy: &Policy, agent_pubkey: &str) -> Result<()> {
+    for authority in &policy.third_party {
+        if authority
+            .keys
+            .iter()
+            .any(|k| k.eq_ignore_ascii_case(agent_pubkey))
+        {
+            return Err(Error::value(format!(
+                "third-party key is the agent key: authority {}",
+                py_repr(&authority.name)
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// `authority.predicate` of each required endorsement whose check failed, read from the
 /// authorizer's failed-check rendering (`... trusting ed25519/<key>`).
 fn missing_endorsements(tp: &ToolPolicy, policy: &Policy, message: &str) -> Vec<String> {
@@ -727,6 +746,11 @@ impl Verifier {
                     token_agent_id.clone()
                 );
             };
+            // Whether anchored or resolved, and whether or not the token carries a
+            // third-party block: an agent cannot be one of its own endorsers.
+            if let Err(e) = third_party_not_agent(&policy, &agent_pubkey) {
+                refuse!(e.message, presented, token_agent_id.clone());
+            }
 
             // 4–7. verify the signed attestation against the real call
             let hash = args_hash.clone().expect("hash computed");
