@@ -7,6 +7,7 @@ use std::io::{BufRead, Write};
 use std::path::Path;
 
 use serde_json::{Value, json};
+use tokencrumb_mcp_proxy::approval::ApprovalDir;
 use tokencrumb_mcp_proxy::biscuit_ops as ops;
 use tokencrumb_mcp_proxy::client_transport::{ClientTransport, MAX_REQUEST, http_agent};
 use tokencrumb_mcp_proxy::json::dumps;
@@ -107,6 +108,7 @@ pub fn client_wrap(
     agent_id: Option<&str>,
     passphrase: Option<&str>,
     ca: Option<&str>,
+    approval_dir: Option<&str>,
 ) -> Outcome {
     let token_b64 = read_token_arg(token);
     let private = match agent_key.filter(|k| !k.is_empty()) {
@@ -150,6 +152,16 @@ pub fn client_wrap(
 
     let mut watched = TokenFile::watch(token);
     let mut bridge = ClientTransport::new(agent, proxy, token_b64, agent_id, private);
+    if let Some(dir) = approval_dir.filter(|d| !d.is_empty()) {
+        match ApprovalDir::open(dir) {
+            Ok(dir) => bridge.approvals = Some(dir),
+            Err(e) => return fail(format!("cannot open approval directory: {}", e.message)),
+        }
+        status(&format!(
+            "{} held calls -> {dir}/requests, receipts <- {dir}/receipts",
+            paint("client-wrap", "32", Stream::Stderr)
+        ));
+    }
     let stdin = std::io::stdin();
     let mut input = stdin.lock();
     let stdout = std::io::stdout();

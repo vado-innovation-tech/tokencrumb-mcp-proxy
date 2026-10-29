@@ -14,7 +14,7 @@ use crate::canonical::{canonicalize, sha256_hex};
 use crate::error::{Error, Result};
 use crate::json::strict_json;
 use crate::keys;
-use crate::nonce_cache::NonceCache;
+use crate::nonce_cache::{NonceCache, ReceiptStore};
 use crate::policy::{Policy, PolicyReloader, load_policy};
 use crate::profiles;
 use crate::proxy::app::{ProxyConfig, close_upstreams, create_app};
@@ -282,44 +282,6 @@ pub fn build_config(options: &ServeOptions) -> Result<Runtime> {
         None => None,
     };
 
-    // Opt-in: rules changing under a running gateway is not something to discover. The
-    // reloader refuses a policy that fails to load and one that changes the upstream
-    // set, so neither can silently take effect.
-    let policy_source: Option<Box<dyn Fn() -> Arc<Policy> + Send + Sync>> = if options.reload_policy
-    {
-        let reloader = PolicyReloader::new(
-            options.policy.clone(),
-            source_policy.clone(),
-            Duration::from_secs(2),
-            Box::new(|_level, message| eprintln!("[tokencrumb] {message}")),
-        );
-        let (mode, min_profile) = (options.mode.clone(), options.min_profile.clone());
-        Some(Box::new(move || {
-            Arc::new(effective(&reloader.current(), &mode, &min_profile))
-        }))
-    } else {
-        None
-    };
-
-    let mut verifier_options = VerifierOptions::new(options.audience.clone());
-    verifier_options.upstream_name = options.upstream_name.clone();
-    verifier_options.policy_source = policy_source;
-    verifier_options.nonce_cache = Some(Arc::new(NonceCache::new(
-        100_000,
-        (options.freshness * 2).max(120),
-        Some(&with_suffix(&budget_state, ".nonces.db")),
-    )?));
-    verifier_options.budget_store = Some(Arc::new(BudgetStore::open(&budget_state)?));
-    verifier_options.revocation = revocation;
-    verifier_options.resolve_agent_pubkey = resolver;
-    verifier_options.freshness_seconds = options.freshness;
-    verifier_options.previous_authority_keys = options
-        .previous_authority
-        .iter()
-        .map(keys::load_public_key)
-        .collect::<Result<_>>()?;
-    let verifier = Verifier::new(&authority_pub, policy.clone(), verifier_options)?;
-
     // Audit signing key. An ephemeral key makes the chain unverifiable after a restart,
     // so it must be asked for explicitly rather than happen by default.
     let audit_private = if let Some(path) = &options.audit_key {
@@ -338,6 +300,60 @@ pub fn build_config(options: &ServeOptions) -> Result<Runtime> {
              or --ephemeral-audit-key to accept a chain that dies with this process",
         ));
     };
+    let audit_public = keys::public_from_private(&audit_private)?;
+    let previous_authority: Vec<String> = options
+        .previous_authority
+        .iter()
+        .map(keys::load_public_key)
+        .collect::<Result<_>>()?;
+    // Approver keys stay apart from every root and from the audit signer, on reload too.
+    let approval_keys: Vec<String> = std::iter::once(authority_pub.clone())
+        .chain(previous_authority.iter().cloned())
+        .collect();
+    let approval_forbidden = vec![audit_public];
+
+    // Opt-in: rules changing under a running gateway is not something to discover. The
+    // reloader refuses a policy that fails to load and one that changes the upstream
+    // set, so neither can silently take effect.
+    let policy_source: Option<Box<dyn Fn() -> Arc<Policy> + Send + Sync>> = if options.reload_policy
+    {
+        let (roots, forbidden) = (approval_keys.clone(), approval_forbidden.clone());
+        let reloader = PolicyReloader::new(
+            options.policy.clone(),
+            source_policy.clone(),
+            Duration::from_secs(2),
+            Box::new(|_level, message| eprintln!("[tokencrumb] {message}")),
+        )
+        .with_validator(Box::new(move |policy| {
+            crate::approval::separated(policy, &roots, &forbidden)
+        }));
+        let (mode, min_profile) = (options.mode.clone(), options.min_profile.clone());
+        Some(Box::new(move || {
+            Arc::new(effective(&reloader.current(), &mode, &min_profile))
+        }))
+    } else {
+        None
+    };
+
+    let mut verifier_options = VerifierOptions::new(options.audience.clone());
+    verifier_options.upstream_name = options.upstream_name.clone();
+    verifier_options.policy_source = policy_source;
+    let nonce_path = with_suffix(&budget_state, ".nonces.db");
+    verifier_options.nonce_cache = Some(Arc::new(NonceCache::new(
+        100_000,
+        (options.freshness * 2).max(120),
+        Some(&nonce_path),
+    )?));
+    // Approval receipts share the nonce database: same volume, same durability.
+    verifier_options.receipt_store = Some(Arc::new(ReceiptStore::open(&nonce_path, 100_000)?));
+    verifier_options.approval_forbidden_keys = approval_forbidden;
+    verifier_options.budget_store = Some(Arc::new(BudgetStore::open(&budget_state)?));
+    verifier_options.revocation = revocation;
+    verifier_options.resolve_agent_pubkey = resolver;
+    verifier_options.freshness_seconds = options.freshness;
+    verifier_options.previous_authority_keys = previous_authority;
+    let verifier = Verifier::new(&authority_pub, policy.clone(), verifier_options)?;
+
     let previous_audit: Vec<String> = options
         .previous_audit_pub
         .iter()

@@ -16,6 +16,7 @@ use biscuit_auth::{AuthorizerBuilder, AuthorizerLimits, Biscuit};
 use chrono::{DateTime, Utc};
 use serde_json::{Map, Value, json};
 
+use crate::approval::{self, ApprovalRequirement, Approved, Hold, IntentInput, Receipt};
 use crate::attestation::{self, AttestationResult, Expected, biscuit_hash};
 use crate::biscuit_ops::{self, verified_block_sources};
 use crate::budget::{BudgetStore, BudgetTx};
@@ -23,7 +24,7 @@ use crate::canonical::{arguments_hash, canonicalize_arg, canonicalize_resource_v
 use crate::error::{Error, Result, py_repr};
 use crate::isotime::timestamp;
 use crate::keys::biscuit_public;
-use crate::nonce_cache::{NonceCache, NonceStore};
+use crate::nonce_cache::{NonceCache, NonceStore, ReceiptStore, Reservation};
 use crate::policy::{Limits, Policy, ToolPolicy, extract_resource, mapped_args};
 use crate::profiles;
 use crate::revocation::RevocationSource;
@@ -105,6 +106,11 @@ pub struct Decision {
     pub agent_key: Option<String>,
     /// Blocks signed by declared third-party authorities, in token order.
     pub endorsements: Vec<Endorsement>,
+    /// Set when the call passed every check but awaits a human approval receipt:
+    /// not forwarded, not charged (`allow` is false).
+    pub hold: Option<Hold>,
+    /// The approval receipt an allowed call consumed.
+    pub approval: Option<Approved>,
 }
 
 impl Decision {
@@ -158,6 +164,13 @@ pub struct VerifierOptions {
     pub freshness_seconds: i128,
     pub now_fn: Option<Clock>,
     pub previous_authority_keys: Vec<String>,
+    /// Durable single-use receipts; required as soon as one tool needs approval.
+    pub receipt_store: Option<Arc<ReceiptStore>>,
+    /// Keys no approver may hold besides the root and third-party ones (the audit key).
+    pub approval_forbidden_keys: Vec<String>,
+    /// How long a reserved receipt belongs to the call in flight before a sweep may
+    /// declare its outcome unknown: the upstream timeout plus a margin.
+    pub receipt_lease_seconds: i128,
 }
 
 impl VerifierOptions {
@@ -173,6 +186,9 @@ impl VerifierOptions {
             freshness_seconds: 60,
             now_fn: None,
             previous_authority_keys: Vec::new(),
+            receipt_store: None,
+            approval_forbidden_keys: Vec::new(),
+            receipt_lease_seconds: 90,
         }
     }
 }
@@ -190,6 +206,12 @@ pub struct Verifier {
     resolve_agent_pubkey: Option<AgentKeyResolver>,
     pub freshness_seconds: i128,
     now_fn: Clock,
+    pub receipts: Option<Arc<ReceiptStore>>,
+    /// Names this process in the receipt table, so that processes sharing the
+    /// database never settle each other's calls in flight.
+    pub instance_id: String,
+    approval_forbidden_keys: Vec<String>,
+    pub receipt_lease_seconds: i128,
 }
 
 /// A third-party key must never also be a root authority key: endorsements and grants
@@ -225,6 +247,23 @@ fn third_party_not_agent(policy: &Policy, agent_pubkey: &str) -> Result<()> {
                 py_repr(&authority.name)
             )));
         }
+    }
+    Ok(())
+}
+
+/// The approval rules needing keys or state the policy file does not hold: approver
+/// keys apart from every other signer, and durable receipts when a tool needs one.
+fn approval_ready(
+    policy: &Policy,
+    authority_keys: &[String],
+    forbidden: &[String],
+    persistent: bool,
+) -> Result<()> {
+    approval::separated(policy, authority_keys, forbidden)?;
+    if policy.has_approval() && !persistent {
+        return Err(Error::value(
+            "approval requires persistent state: single-use receipts must survive a restart",
+        ));
     }
     Ok(())
 }
@@ -380,6 +419,18 @@ impl Verifier {
             biscuit_public(trusted)?;
         }
         third_party_separated(&policy, &authority_keys)?;
+        approval_ready(
+            &policy,
+            &authority_keys,
+            &options.approval_forbidden_keys,
+            options.receipt_store.is_some(),
+        )?;
+        let receipt_lease_seconds = integer(
+            options.receipt_lease_seconds,
+            "receipt_lease_seconds",
+            1,
+            86400,
+        )?;
         let freshness_seconds = integer(options.freshness_seconds, "freshness_seconds", 1, 3600)?;
         Ok(Self {
             audience,
@@ -398,7 +449,22 @@ impl Verifier {
             resolve_agent_pubkey: options.resolve_agent_pubkey,
             freshness_seconds,
             now_fn: options.now_fn.unwrap_or_else(|| Box::new(Utc::now)),
+            receipts: options.receipt_store,
+            instance_id: approval::new_id("gw_"),
+            approval_forbidden_keys: options.approval_forbidden_keys,
+            receipt_lease_seconds,
         })
+    }
+
+    /// The approval rules that need this verifier's keys and state; a reload must
+    /// pass them too.
+    pub fn check_approval_policy(&self, policy: &Policy) -> Result<()> {
+        approval_ready(
+            policy,
+            &self.authority_keys,
+            &self.approval_forbidden_keys,
+            self.receipts.is_some(),
+        )
     }
 
     /// The policy in force right now. Read through the reloader on every call, so a
@@ -536,6 +602,8 @@ impl Verifier {
                 issuer: identity.issuer.clone(),
                 agent_key: identity.agent_key.clone(),
                 endorsements: identity.endorsements.clone(),
+                hold: None,
+                approval: None,
             })
         };
         macro_rules! refuse {
@@ -630,7 +698,9 @@ impl Verifier {
             refuse!("biscuit revoked");
         }
         // -- 1a. third-party blocks: declared authority, delegated predicates only -----
-        if let Err(e) = third_party_separated(&policy, &self.authority_keys) {
+        if let Err(e) = third_party_separated(&policy, &self.authority_keys)
+            .and_then(|()| self.check_approval_policy(&policy))
+        {
             refuse!(format!("policy error: {}", e.message));
         }
         match third_party_blocks(
@@ -712,6 +782,8 @@ impl Verifier {
         // -- 3–7. attestation (3a / 3b) ---------------------------------------------
         let mut proofs: Option<Proofs> = None;
         let mut attested: Option<AttestationResult> = None;
+        // The key that verified the attestation: the agent, for the approval intent.
+        let mut attested_key: Option<String> = None;
         if presented == profiles::HARDENED || presented == profiles::REGISTRY {
             // 3. agent_pubkey provenance
             let agent_pubkey = if presented == profiles::HARDENED {
@@ -790,6 +862,7 @@ impl Verifier {
             }
             proofs = Some(Proofs::from(&result));
             attested = Some(result);
+            attested_key = Some(agent_pubkey);
         }
 
         // -- 8. tool mapping + resource canonicalization -----------------------------
@@ -1001,6 +1074,67 @@ impl Verifier {
             }
         }
 
+        // -- approval: hold the call, or consume its receipt ----------------------------
+        // Every other check has passed, budget included: an approval is never asked for
+        // a call that would be refused anyway, and it never replaces any of them.
+        let mut approved: Option<Approved> = None;
+        if let Some(requirement) = &tp.approval {
+            let Some(agent_key) = attested_key.clone() else {
+                refuse!(
+                    "approval requires an attested call",
+                    presented,
+                    token_agent_id.clone()
+                );
+            };
+            let intent = approval::intent(&IntentInput {
+                tool,
+                operation: &tp.operation,
+                resource: canonical_resource.as_deref(),
+                arguments_hash: args_hash.as_deref().unwrap_or_default(),
+                mandate_hash: &biscuit_hash(&token_b64),
+                agent_id: token_agent_id.as_deref(),
+                agent_key: &agent_key,
+                audience: &self.audience,
+            });
+            let hash = approval::intent_hash(&intent)?;
+            let Some(raw) = headers.get(approval::RECEIPT_HEADER) else {
+                return Ok(Decision {
+                    allow: false,
+                    reason: "approval required".into(),
+                    profile: presented.to_owned(),
+                    tool: tool.to_owned(),
+                    agent_id: token_agent_id,
+                    resource: canonical_resource,
+                    arguments_hash: args_hash,
+                    remaining_budget: remaining,
+                    mandate_id: Some(mandate_key),
+                    subject: facts.get("user").map(str::to_owned),
+                    issuer: facts.get("issuer").map(str::to_owned),
+                    agent_key: anchored_pubkey,
+                    endorsements: identity.endorsements,
+                    hold: Some(Hold {
+                        request_id: approval::new_id("apr_"),
+                        intent,
+                        intent_hash: hash,
+                        arguments: arguments.clone(),
+                        approvers: requirement.approvers.clone(),
+                        expires_at: approval::hold_expiry(now, requirement.receipt_ttl_seconds),
+                    }),
+                    approval: None,
+                });
+            };
+            match self.consume_receipt(raw, requirement, &policy, &agent_key, &hash, now)? {
+                Ok(consumed) => approved = Some(consumed),
+                Err(reason) => refuse!(
+                    reason,
+                    presented,
+                    token_agent_id.clone(),
+                    canonical_resource.clone(),
+                    remaining
+                ),
+            }
+        }
+
         // -- 11. effects (consume budget) --------------------------------------------
         if !counters.is_empty() {
             let keys: Vec<&str> = counters.iter().map(|(k, _)| k.as_str()).collect();
@@ -1027,6 +1161,82 @@ impl Verifier {
             issuer: facts.get("issuer").map(str::to_owned),
             agent_key: anchored_pubkey,
             endorsements: identity.endorsements,
+            hold: None,
+            approval: approved,
+        })
+    }
+
+    /// Verify and consume one receipt, in the order of the lot-1 specification. The
+    /// inner `Err` is a refusal reason; the outer one, state that could not be read.
+    fn consume_receipt(
+        &self,
+        raw: &str,
+        requirement: &ApprovalRequirement,
+        policy: &Policy,
+        agent_key: &str,
+        intent_hash: &str,
+        now: DateTime<Utc>,
+    ) -> Result<std::result::Result<Approved, &'static str>> {
+        use approval::reason;
+        // 1. decode
+        let Ok(receipt) = Receipt::from_header(raw) else {
+            return Ok(Err(reason::MALFORMED));
+        };
+        // 2. a member of a group this tool lists, under the id the receipt claims
+        let member = approval::member_for(policy, &requirement.approvers, &receipt.approver_key);
+        if member.is_none_or(|m| m.id != receipt.approver_id) {
+            return Ok(Err(reason::NOT_REGISTERED));
+        }
+        // 3. nobody approves their own call
+        if receipt.approver_key.eq_ignore_ascii_case(agent_key) {
+            return Ok(Err(reason::AGENT_KEY));
+        }
+        // 4. signature
+        if !receipt.signature_valid() {
+            return Ok(Err(reason::SIGNATURE));
+        }
+        // 5. the exact call
+        if receipt.intent_hash != intent_hash {
+            return Ok(Err(reason::INTENT));
+        }
+        // 6. dates, on the gateway clock
+        let skew = chrono::TimeDelta::seconds(policy.clock_skew_seconds as i64);
+        if receipt.issued_at > now + skew {
+            return Ok(Err(reason::FUTURE));
+        }
+        if receipt.expires_at <= now {
+            return Ok(Err(reason::EXPIRED));
+        }
+        if receipt.expires_at - receipt.issued_at
+            > chrono::TimeDelta::seconds(requirement.receipt_ttl_seconds as i64)
+        {
+            return Ok(Err(reason::LIFETIME));
+        }
+        // 7. consume: durable, single use, before anything is forwarded
+        let Some(store) = &self.receipts else {
+            return Err(Error::value("approval requires persistent receipt state"));
+        };
+        let now_ts = timestamp(&now);
+        let reserved = store.reserve(
+            &receipt.receipt_id,
+            &receipt.intent_hash,
+            &receipt.approver_id,
+            timestamp(&receipt.expires_at),
+            &self.instance_id,
+            now_ts + self.receipt_lease_seconds as f64,
+            now_ts,
+            now_ts - policy.clock_skew_seconds as f64,
+        )?;
+        Ok(match reserved {
+            Reservation::Reserved => Ok(Approved {
+                receipt_id: receipt.receipt_id,
+                request_id: receipt.request_id,
+                approver_id: receipt.approver_id,
+                key: receipt.approver_key,
+                intent_hash: receipt.intent_hash,
+            }),
+            Reservation::Used => Err(reason::USED),
+            Reservation::Full => Err(reason::FULL),
         })
     }
 
