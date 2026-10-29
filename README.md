@@ -481,7 +481,18 @@ The policy supplies trusted facts for the current call. A capability may constra
 
 ### MCP transport
 
-The supported MCP revision is `2025-06-18`; other configured revisions are rejected. Each upstream has its own endpoint and sessions. Tool lists are filtered through local policy mappings; callers still need authorization for each tool call. JSON-RPC batches and unsupported methods are refused. Server-initiated interaction and a long-lived server event channel are outside the supported surface.
+The supported MCP revisions are `2025-06-18` and `2025-11-25`, which open with an `initialize` handshake, and `2026-07-28`, which carries its revision and client capabilities in each request's `_meta`. `mcp.spec_version` lists the revisions a deployment accepts (all three by default; a single string accepts exactly one); a request declaring any other revision is refused with HTTP 400 and `UnsupportedProtocolVersion` (−32022). Each upstream has its own endpoint. Tool lists are filtered through local policy mappings; callers still need authorization for each tool call. JSON-RPC batches and unsupported methods are refused. Server-initiated interaction and a long-lived server event channel are outside the supported surface.
+
+The gateway is dual-era. It selects the agent's era per request: a body declaring `io.modelcontextprotocol/protocolVersion`, or an `MCP-Protocol-Version: 2026-07-28` header, is a 2026-07-28 request. It detects each upstream's era once with a `server/discover` probe (an unanswered or non-2026 reply means `initialize` era; a stdio child is then restarted) and remembers it for the life of the process.
+
+| Agent | Upstream | Behavior |
+| --- | --- | --- |
+| `initialize` era | `initialize` era | Relayed as before: `initialize` is pinned to an accepted revision with client capabilities emptied, sessions are bound to their mandate holder. |
+| `initialize` era | 2026-07-28 | Translated: the gateway answers `initialize`, `notifications/initialized` and `ping` itself from the upstream's `server/discover`, and adds `_meta` to every relayed request. |
+| 2026-07-28 | 2026-07-28 | Relayed statelessly, with the checks below. |
+| 2026-07-28 | `initialize` era | Refused with `UnsupportedProtocolVersion`, listing the accepted `initialize` revisions, so a dual-era agent falls back to `initialize`. |
+
+For a 2026-07-28 request, `MCP-Protocol-Version` is mandatory and must equal the body's `_meta` revision; `Mcp-Method`, `Mcp-Name` (Base64 sentinel decoded) and the `Mcp-Param-*` headers annotated with `x-mcp-header` in the upstream's catalog must match the body. A missing or contradicting header is refused with HTTP 400 and `HeaderMismatch` (−32020) before any authorization decision. The gateway decides on the body, then recomputes every mirrored header it sends upstream from the body it forwards, including the upstream name of a tool renamed by `upstream_tool`; these header names cannot be set by configured upstream credentials. `Mcp-Session-Id` and `Last-Event-ID` are ignored and propagated only to `initialize`-era upstreams. The client capabilities in `_meta` are emptied on each request, as `initialize` capabilities are. `server/discover` is relayed with its capabilities reduced to `tools`. A filtered `tools/list` carries `cacheScope: "private"` and a `ttlMs` of at most 30 seconds, and every gateway result carries `resultType: "complete"`, including denials. Multi round-trip requests (`input_required`, `inputResponses`, `requestState`) and tasks are refused with the gateway's own code −31001, outside the JSON-RPC reserved range.
 
 HTTP upstreams use transport clients; stdio upstreams run as child processes. For a stdio upstream, pass a quoted executable and arguments as `--upstream` instead of an HTTP URL. The command is split into arguments without a shell; shell pipelines and expansion are not supported. Child process commands are operator configuration, not client-supplied actions. The client wrapper translates stdio JSON-RPC into calls to the proxy.
 
@@ -489,7 +500,7 @@ HTTP upstreams use transport clients; stdio upstreams run as child processes. Fo
 
 Budget counters are keyed by the root capability and by tool. Attenuation does not create a fresh spending identity. Nonces persist in SQLite. Signed revocation documents are validated before use. File publication and locking protect local state transitions; no distributed transaction manager is included.
 
-Audit entries carry sequence, previous hash, policy digest, decision context and a signature. Client-facing denials are generic and expose a correlation identifier; detailed reasons belong in the audit. Verify the chain with separately trusted public keys and retain external checkpoints to detect history rewrites by the audit signer.
+Audit entries carry sequence, previous hash, policy digest, decision context and a signature. Transport refusals that precede any authorization decision are recorded too: untrusted origin, unsupported `MCP-Protocol-Version`, header mismatch, and the tracked-client cap (HTTP 429, at most one entry a minute). Client-facing denials are generic and expose a correlation identifier; detailed reasons belong in the audit. Verify the chain with separately trusted public keys and retain external checkpoints to detect history rewrites by the audit signer.
 
 ## Security model
 
@@ -512,6 +523,7 @@ The default policy requires `hardened_biscuit_anchored`. A stolen capability alo
 | Budget reset after attenuation or restart | Root-based counters and durable state | `budget_two_level`, `budget_persist`, `one_shot` |
 | Policy or parser confusion | Strict JSON/YAML, typed metadata and bounded Datalog | `security_configuration`, `security_contract`, `datalog_limits` |
 | Hidden protocol route | Explicit MCP method handling | `proxy_router`, `security_http_audit` |
+| Header and body disagreement (MCP 2026-07-28) | Headers checked against the body before the decision, recomputed from the forwarded body | `mcp_2026` |
 | Audit tampering without the key | Signed hash chain and trusted key verification | `audit_chain` |
 
 These tests establish specific local behaviors, not a certification of any deployment.
@@ -528,7 +540,7 @@ These tests establish specific local behaviors, not a certification of any deplo
 - Local state persistence is not a cross-host distributed consistency guarantee. Rollback or independent replicas can violate intended global limits.
 - Audit integrity does not prove completeness. The audit signer can rewrite and re-sign a local chain unless an independent witness retains checkpoints.
 - Revocation is effective after trusted updates reach the verifier. It is not an instantaneous global operation.
-- MCP resources, prompts and server-initiated interaction are unsupported. `tools/list` is catalog filtering, not an authorization grant.
+- MCP resources, prompts, server-initiated interaction, multi round-trip requests and tasks are unsupported. `Mcp-Param-*` headers are checked against annotations learned from the last `tools/list` relayed for that endpoint; before one, they are passed on unchecked for the upstream to validate. `tools/list` is catalog filtering, not an authorization grant.
 - Observation mode is not an enforcement boundary. TLS, host protection, key lifecycle and upstream access controls remain deployment responsibilities.
 
 Report vulnerabilities through the process [below](#reporting-vulnerabilities).

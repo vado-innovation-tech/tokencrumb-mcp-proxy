@@ -32,8 +32,9 @@ pub const PROOF_FACTS: &[&str] = &[
     "capability_bound",
 ];
 
-/// MCP methods the gateway relays without a mandate. `tools/call` (enforced) and
-/// `tools/list` (filtered) are handled separately and are never listed here.
+/// MCP methods the gateway relays without a mandate. `tools/call` (enforced),
+/// `tools/list` (filtered) and `server/discover` (reduced) are handled separately and
+/// are never listed here.
 pub const DEFAULT_ALLOW_METHODS: &[&str] = &[
     "initialize",
     "ping",
@@ -41,9 +42,19 @@ pub const DEFAULT_ALLOW_METHODS: &[&str] = &[
     "notifications/cancelled",
 ];
 
-/// The MCP revision this gateway is pinned to. 2025-06-18 removed JSON-RPC batching,
+/// The first MCP revision a policy accepts by default, and the one an `initialize`
+/// naming an unaccepted revision is rewritten to. 2025-06-18 removed JSON-RPC batching,
 /// which is why a batch body is refused rather than unpacked.
 pub const DEFAULT_SPEC_VERSION: &str = "2025-06-18";
+
+/// Revisions opened with an `initialize` handshake ("legacy" in MCP 2026-07-28 terms).
+pub const LEGACY_SPEC_VERSIONS: &[&str] = &["2025-06-18", "2025-11-25"];
+
+/// Revisions carrying their version and client capabilities in each request's `_meta`.
+pub const MODERN_SPEC_VERSIONS: &[&str] = &["2026-07-28"];
+
+/// Every revision `mcp.spec_version` may list, oldest first; also the default list.
+pub const SUPPORTED_SPEC_VERSIONS: &[&str] = &["2025-06-18", "2025-11-25", "2026-07-28"];
 
 /// Projects one MCP call argument into a Datalog `arg(name, value)` fact.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,14 +67,47 @@ pub struct ArgMapping {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct McpPolicy {
+    /// The first accepted revision (`spec_versions[0]`), kept for display and for
+    /// policies written when the gateway accepted exactly one.
     pub spec_version: String,
+    /// Every accepted revision, in policy order: `mcp.spec_version` as a list, or a
+    /// single string for exactly one.
+    pub spec_versions: Vec<String>,
     pub allow_methods: Vec<String>,
+}
+
+impl McpPolicy {
+    pub fn accepts(&self, version: &str) -> bool {
+        self.spec_versions.iter().any(|v| v == version)
+    }
+
+    /// Accepted `initialize`-era revisions, in policy order.
+    pub fn legacy_versions(&self) -> Vec<&str> {
+        self.spec_versions
+            .iter()
+            .map(String::as_str)
+            .filter(|v| LEGACY_SPEC_VERSIONS.contains(v))
+            .collect()
+    }
+
+    /// Accepted per-request-metadata revisions, in policy order.
+    pub fn modern_versions(&self) -> Vec<&str> {
+        self.spec_versions
+            .iter()
+            .map(String::as_str)
+            .filter(|v| MODERN_SPEC_VERSIONS.contains(v))
+            .collect()
+    }
 }
 
 impl Default for McpPolicy {
     fn default() -> Self {
         Self {
             spec_version: DEFAULT_SPEC_VERSION.into(),
+            spec_versions: SUPPORTED_SPEC_VERSIONS
+                .iter()
+                .map(|v| (*v).to_owned())
+                .collect(),
             allow_methods: DEFAULT_ALLOW_METHODS
                 .iter()
                 .map(|m| (*m).to_owned())
@@ -646,7 +690,10 @@ pub fn parse_policy(raw: &Value) -> Result<Policy> {
         get_or(m, "allow_methods", &default_methods),
         "mcp.allow_methods",
     )? {
-        if matches!(method.as_str(), Some("tools/call" | "tools/list")) {
+        if matches!(
+            method.as_str(),
+            Some("tools/call" | "tools/list" | "server/discover")
+        ) {
             return Err(Error::value(format!(
                 "mcp.allow_methods must not contain {} (handled separately)",
                 value_repr(method)
@@ -654,12 +701,35 @@ pub fn parse_policy(raw: &Value) -> Result<Policy> {
         }
         methods.push(choice_value(method, DEFAULT_ALLOW_METHODS, "mcp.allow_methods")?.to_owned());
     }
-    let default_spec = Value::String(DEFAULT_SPEC_VERSION.into());
-    let spec = choice_value(
-        get_or(m, "spec_version", &default_spec),
-        &[DEFAULT_SPEC_VERSION],
-        "spec_version",
-    )?;
+    // A single string keeps policies written for one pinned revision valid.
+    let default_spec = Value::Array(
+        SUPPORTED_SPEC_VERSIONS
+            .iter()
+            .map(|v| Value::String((*v).into()))
+            .collect(),
+    );
+    let mut spec_versions: Vec<String> = Vec::new();
+    match get_or(m, "spec_version", &default_spec) {
+        Value::Array(items) => {
+            if items.is_empty() {
+                return Err(Error::value("spec_version: expected at least one revision"));
+            }
+            for item in items {
+                let version = choice_value(item, SUPPORTED_SPEC_VERSIONS, "spec_version")?;
+                if spec_versions.iter().any(|v| v == version) {
+                    return Err(Error::value(format!(
+                        "spec_version: duplicate revision {}",
+                        value_repr(item)
+                    )));
+                }
+                spec_versions.push(version.to_owned());
+            }
+        }
+        single => {
+            spec_versions
+                .push(choice_value(single, SUPPORTED_SPEC_VERSIONS, "spec_version")?.to_owned());
+        }
+    }
 
     let default_ttl = Value::String("8h".into());
     let ttl = match get_or(raw, "max_ttl", &default_ttl) {
@@ -732,7 +802,8 @@ pub fn parse_policy(raw: &Value) -> Result<Policy> {
         third_party,
         approvers,
         mcp: McpPolicy {
-            spec_version: spec.to_owned(),
+            spec_version: spec_versions[0].clone(),
+            spec_versions,
             allow_methods: methods,
         },
         policy_digest: String::new(),

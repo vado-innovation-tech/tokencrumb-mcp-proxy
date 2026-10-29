@@ -290,14 +290,14 @@
  "spec_date": {
   "result": {
    "err": "ValueError",
-   "message": "spec_version: expected one of ['2025-06-18']"
+   "message": "spec_version: expected one of ['2025-06-18', '2025-11-25', '2026-07-28']"
   },
   "text": "mcp: {spec_version: 2025-06-18}\n"
  },
  "spec_other": {
   "result": {
    "err": "ValueError",
-   "message": "spec_version: expected one of ['2025-06-18']"
+   "message": "spec_version: expected one of ['2025-06-18', '2025-11-25', '2026-07-28']"
   },
   "text": "mcp: {spec_version: '2024-11-05'}\n"
  },
