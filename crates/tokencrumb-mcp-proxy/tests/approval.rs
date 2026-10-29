@@ -1431,3 +1431,245 @@ fn the_example_policy_parses_once_its_keys_are_filled_in() {
     assert_eq!(tool.approval.as_ref().unwrap().receipt_ttl_seconds, 300);
     assert_eq!(policy.approvers[0].members.len(), 2);
 }
+
+// -- §6.13: end to end, with the binary ----------------------------------------------------
+
+/// `serve`, `client-wrap --approval-dir` and `approve` as separate processes: the hold,
+/// the request written by the wrapper, the approval, the accepted replay, the refused
+/// replay and the verified audit.
+#[test]
+fn end_to_end_hold_approve_replay_with_the_binary() {
+    use std::io::{BufRead, BufReader, Write};
+    use std::process::{Command, Stdio};
+
+    let dir = tempfile::tempdir().unwrap();
+    let state = dir.path();
+    let authority = common::keyfiles(state, "authority");
+    let agent = common::keyfiles(state, "agent");
+    common::keyfiles(state, "audit");
+    let approver = common::keyfiles(state, "approver");
+    let policy = json!({
+        "mode": "enforce",
+        "min_profile": "hardened_biscuit_anchored",
+        "approvers": {"ops": {"members": [{"id": "a.dupont", "keys": [approver.public_str]}]}},
+        "tools": [{
+            "name": TOOL, "operation": "write", "resource": {"from": "arguments.path"},
+            "allow": {"resource_prefix": "/workspace/", "budget": 5},
+            "require": ["call_signature_valid", "nonce_fresh", "arguments_bound"],
+            "approval": {"approvers": ["ops"], "receipt_ttl": "5m"},
+        }],
+    });
+    std::fs::write(state.join("policy.yaml"), policy.to_string()).unwrap();
+    let token = biscuit_ops::forge(
+        &authority.private_str,
+        &ForgeRequest {
+            agent_id: AGENT.into(),
+            tool: TOOL.into(),
+            operation: "write".into(),
+            ttl_seconds: 900,
+            budget: 5,
+            resource_prefix: Some("/workspace/".into()),
+            agent_pubkey: Some(agent.public_str.clone()),
+            required_profile: "hardened_biscuit_anchored".into(),
+            audience: TEST_AUDIENCE.into(),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    std::fs::write(state.join("capability.b64"), &token).unwrap();
+
+    let upstream = common::stub::serve(|request| {
+        let message = request.json();
+        let result = match message["method"].as_str() {
+            Some("initialize") => {
+                json!({"protocolVersion": "2025-06-18", "capabilities": {"tools": {}},
+                                          "serverInfo": {"name": "stub", "version": "1"}})
+            }
+            _ => json!({"content": [{"type": "text", "text": "deleted"}]}),
+        };
+        common::stub::StubResponse::json(
+            &json!({"jsonrpc": "2.0", "id": message["id"], "result": result}),
+        )
+    });
+    let listen = std::net::TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port();
+    let binary = env!("CARGO_BIN_EXE_tokencrumb");
+    let log = std::fs::File::create(state.join("serve.log")).unwrap();
+    let mut proxy = Command::new(binary)
+        .args([
+            "serve",
+            "--upstream",
+            &format!("{}/mcp", upstream.url),
+            "--authority-pub",
+            "authority.pub",
+            "--policy",
+            "policy.yaml",
+            "--audience",
+            TEST_AUDIENCE,
+            "--audit-key",
+            "audit.key",
+            "--audit",
+            "audit.log",
+            "--budget-state",
+            "budget.json",
+            "--listen",
+            &format!("127.0.0.1:{listen}"),
+        ])
+        .current_dir(state)
+        .env("NO_COLOR", "1")
+        .stdout(Stdio::null())
+        .stderr(log)
+        .spawn()
+        .unwrap();
+    let deadline = std::time::Instant::now() + Duration::from_secs(15);
+    while std::net::TcpStream::connect(("127.0.0.1", listen)).is_err() {
+        assert!(
+            proxy.try_wait().unwrap().is_none(),
+            "{}",
+            std::fs::read_to_string(state.join("serve.log")).unwrap()
+        );
+        assert!(std::time::Instant::now() < deadline, "proxy did not listen");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    let mut wrapper = Command::new(binary)
+        .args([
+            "client-wrap",
+            "--proxy",
+            &format!("http://127.0.0.1:{listen}/mcp"),
+            "--token",
+            "capability.b64",
+            "--agent-key",
+            "agent.key",
+            "--approval-dir",
+            "approvals",
+        ])
+        .current_dir(state)
+        .env("NO_COLOR", "1")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let mut input = wrapper.stdin.take().unwrap();
+    let mut output = BufReader::new(wrapper.stdout.take().unwrap());
+    let mut sequence = 0;
+    let mut rpc = |method: &str, params: Value| -> Value {
+        sequence += 1;
+        writeln!(
+            input,
+            "{}",
+            json!({"jsonrpc": "2.0", "id": sequence, "method": method, "params": params})
+        )
+        .unwrap();
+        input.flush().unwrap();
+        let mut line = String::new();
+        output.read_line(&mut line).unwrap();
+        serde_json::from_str(&line).unwrap()
+    };
+    let delete = json!({"name": TOOL, "arguments": {"path": PATH}});
+
+    assert!(
+        rpc(
+            "initialize",
+            json!({"protocolVersion": "2025-06-18", "capabilities": {},
+                                       "clientInfo": {"name": "e2e", "version": "1"}})
+        )["result"]
+            .is_object()
+    );
+    let held = rpc("tools/call", delete.clone());
+    let request_id = held["result"]["structuredContent"]["approval_required"]["request_id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let tool_calls = || {
+        upstream
+            .calls()
+            .iter()
+            .filter(|c| c.json()["method"] == "tools/call")
+            .count()
+    };
+    assert_eq!(tool_calls(), 0, "held, not forwarded");
+    let request = format!("approvals/requests/{request_id}.json");
+    assert!(
+        state.join(&request).is_file(),
+        "the wrapper wrote the request"
+    );
+
+    let receipt = format!("approvals/receipts/{request_id}.json");
+    let approved = common::bm(
+        state,
+        &[
+            "approve",
+            "--request",
+            &request,
+            "--key",
+            "approver.key",
+            "--approver-id",
+            "a.dupont",
+            "--yes",
+            "--out",
+            &receipt,
+        ],
+    );
+    assert_eq!(
+        approved.status.code(),
+        Some(0),
+        "{}",
+        common::stderr(&approved)
+    );
+
+    let allowed = rpc("tools/call", delete.clone());
+    assert_eq!(
+        allowed["result"]["content"][0]["text"], "deleted",
+        "{allowed}"
+    );
+    assert_eq!(tool_calls(), 1);
+    let used = state.join(format!("approvals/used/{request_id}.json"));
+    assert!(
+        used.is_file() && !state.join(&receipt).exists(),
+        "the receipt moved to used/"
+    );
+    assert!(
+        upstream
+            .calls()
+            .iter()
+            .all(|c| c.header("approval-receipt").is_none())
+    );
+
+    // The same receipt again: refused by the gateway, nothing forwarded.
+    std::fs::copy(&used, state.join(&receipt)).unwrap();
+    let replayed = rpc("tools/call", delete);
+    assert!(
+        replayed["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .starts_with("DENY")
+    );
+    assert_eq!(tool_calls(), 1);
+
+    let _ = wrapper.kill();
+    let _ = wrapper.wait();
+    let _ = proxy.kill();
+    let _ = proxy.wait();
+    let entries = common::proxy::audit_entries(&state.join("audit.log"));
+    let decisions: Vec<&str> = entries
+        .iter()
+        .filter(|e| e["method"] == "tools/call")
+        .map(|e| e["decision"].as_str().unwrap())
+        .collect();
+    assert_eq!(decisions, ["HOLD", "ALLOW", "OUTCOME", "DENY"]);
+    assert_eq!(entries.last().unwrap()["reason"], "receipt already used");
+    let verified = common::bm(
+        state,
+        &["audit-verify", "--log", "audit.log", "--pub", "audit.pub"],
+    );
+    assert_eq!(
+        verified.status.code(),
+        Some(0),
+        "{}",
+        common::stderr(&verified)
+    );
+}
