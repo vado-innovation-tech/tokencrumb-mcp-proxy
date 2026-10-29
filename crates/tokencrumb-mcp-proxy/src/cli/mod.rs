@@ -328,15 +328,15 @@ pub enum Command {
         /// CA bundle (PEM) trusted for the proxy's TLS cert
         #[arg(long)]
         ca: Option<String>,
-        /// Human approval: write held calls to <dir>/requests, attach the matching
-        /// receipt from <dir>/receipts to the identical replay, move it to <dir>/used
+        /// Human approval: write held calls to `<dir>/requests`, attach the matching
+        /// receipt from `<dir>/receipts` to the identical replay, move it to `<dir>/used`
         #[arg(long)]
         approval_dir: Option<String>,
     },
     /// Show a held call's request, recompute its hashes and sign a single-use
     /// approval receipt for exactly that call (approver side).
     Approve {
-        /// Request file written by `client-wrap --approval-dir` (requests/<id>.json)
+        /// Request file written by `client-wrap --approval-dir` (`requests/<id>.json`)
         #[arg(long)]
         request: String,
         /// Approver private key file
@@ -350,7 +350,7 @@ pub enum Command {
         ttl: String,
         #[arg(long)]
         passphrase: Option<String>,
-        /// Receipt file (e.g. <dir>/receipts/<id>.json); stdout when absent
+        /// Receipt file (e.g. `<dir>/receipts/<id>.json`); stdout when absent
         #[arg(long)]
         out: Option<String>,
         /// Sign without asking for confirmation (tests and scripted demos)
