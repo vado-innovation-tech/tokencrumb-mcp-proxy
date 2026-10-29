@@ -39,6 +39,7 @@ use futures_util::StreamExt;
 use rand::RngCore;
 use serde_json::{Map, Value, json};
 
+use crate::approval::{Approved, hold_result};
 use crate::audit::{AuditLog, Record};
 use crate::error::{Error, ErrorKind, Result, py_repr};
 use crate::json::{dumps, strict_json};
@@ -56,6 +57,8 @@ const RELAY_HEADERS: &[&str] = &["mcp-session-id", "mcp-protocol-version"];
 const MAX_CLIENTS: usize = 4096;
 const MAX_SESSIONS: usize = 4096;
 const SESSION_TTL: Duration = Duration::from_secs(3600);
+/// How often a running gateway looks for approved calls whose lease ran out.
+const RECEIPT_SWEEP_INTERVAL: Duration = Duration::from_secs(30);
 
 pub struct ProxyConfig {
     pub verifier: Arc<Verifier>,
@@ -167,6 +170,58 @@ struct AppState {
     upstreams: HashMap<Option<String>, SharedUpstream>,
     rates: Mutex<Rates>,
     sessions: Mutex<Sessions>,
+    last_sweep: Mutex<Instant>,
+}
+
+/// Settle approved calls left `reserved` past their lease (a crash, a restart): their
+/// upstream effect is unknown. Each becomes an `OUTCOME` entry with state `unknown`.
+fn sweep_receipts(verifier: &Verifier, audit: Option<&AuditLog>) -> Result<()> {
+    let Some(store) = &verifier.receipts else {
+        return Ok(());
+    };
+    for row in store.sweep(crate::isotime::timestamp(&verifier.now()))? {
+        if let Some(audit) = audit {
+            let mut detail = Map::new();
+            detail.insert("receipt_id".into(), json!(row.receipt_id));
+            detail.insert("state".into(), json!("unknown"));
+            detail.insert("instance_id".into(), json!(row.instance_id));
+            detail.insert("lease_expired".into(), json!(true));
+            audit.record(Record {
+                decision: "OUTCOME".into(),
+                method: Some("tools/call".into()),
+                detail: Some(detail),
+                ..Default::default()
+            })?;
+        }
+    }
+    Ok(())
+}
+
+/// What became of an approved call once forwarded: `ok` when the tool answered (an
+/// `isError` tool result included), `upstream_error` for a JSON-RPC or HTTP error
+/// before any result, `unknown` when no usable answer came back.
+fn outcome_state(forwarded: &Result<UpstreamResponse>) -> &'static str {
+    match forwarded {
+        Err(e) if e.kind == ErrorKind::Io && e.message.starts_with("ConnectError") => {
+            "upstream_error"
+        }
+        Err(_) => "unknown",
+        Ok(response) if response.status >= 400 => "upstream_error",
+        Ok(response) => match response_messages(
+            response.status,
+            response.header("content-type"),
+            &response.body,
+        ) {
+            Ok((messages, _)) if messages.len() == 1 => {
+                if messages[0].get("result").is_some() {
+                    "ok"
+                } else {
+                    "upstream_error"
+                }
+            }
+            _ => "unknown",
+        },
+    }
 }
 
 fn json_response(status: StatusCode, value: &Value) -> Response {
@@ -358,6 +413,40 @@ impl Ctx<'_> {
             .await
             .map_err(|e| Error::runtime(e.to_string()))??;
         Ok(())
+    }
+
+    /// Settle the receipt of an approved call and record its `OUTCOME`.
+    async fn outcome(&self, tool: &str, approved: &Approved, state: &str) -> Result<()> {
+        let verifier = self.state.config.verifier.clone();
+        let receipt_id = approved.receipt_id.clone();
+        let settled = state.to_owned();
+        let updated = tokio::task::spawn_blocking(move || match &verifier.receipts {
+            Some(store) => store.finish(
+                &receipt_id,
+                &verifier.instance_id,
+                &settled,
+                crate::isotime::timestamp(&verifier.now()),
+            ),
+            None => Ok(false),
+        })
+        .await
+        .map_err(|e| Error::runtime(e.to_string()))??;
+        let mut detail = self.detail().unwrap_or_default();
+        detail.insert("receipt_id".into(), json!(approved.receipt_id));
+        detail.insert("request_id".into(), json!(approved.request_id));
+        detail.insert("state".into(), json!(state));
+        if !updated {
+            // A sweep already declared it unknown: the lease was shorter than the call.
+            detail.insert("late".into(), json!(true));
+        }
+        self.audit(Record {
+            decision: "OUTCOME".into(),
+            method: Some("tools/call".into()),
+            tool: Some(tool.to_owned()),
+            detail: Some(detail),
+            ..Default::default()
+        })
+        .await
     }
 
     async fn deny(
@@ -720,6 +809,7 @@ async fn handle_inner(
     }
 
     let mut outgoing: Vec<u8> = raw.clone();
+    let mut approved: Option<(String, Approved)> = None;
     let empty_params = Value::Object(Map::new());
     if method == "tools/call" {
         // -- tools/call: the enforced path -------------------------------------------
@@ -730,6 +820,21 @@ async fn handle_inner(
             (Value::String(t), true) if !t.is_empty() => t.clone(),
             _ => return refuse("invalid tool name or arguments".into(), INVALID_REQUEST).await,
         };
+        let due = {
+            let mut last = state.last_sweep.lock().expect("sweep lock");
+            let due = last.elapsed() >= RECEIPT_SWEEP_INTERVAL;
+            if due {
+                *last = Instant::now();
+            }
+            due
+        };
+        if due && state.config.verifier.receipts.is_some() {
+            let verifier = state.config.verifier.clone();
+            let audit = state.config.audit.clone();
+            tokio::task::spawn_blocking(move || sweep_receipts(&verifier, audit.as_deref()))
+                .await
+                .map_err(|e| Error::runtime(e.to_string()))??;
+        }
         let verifier = state.config.verifier.clone();
         let (call_tool, call_args, call_headers, call_endpoint, call_policy) = (
             tool.clone(),
@@ -758,13 +863,23 @@ async fn handle_inner(
             Err(e) => (None, format!("internal verifier error: {}", e.message)),
         };
         let allowed = decision.as_ref().is_some_and(|d| d.allow);
+        let hold = decision.as_ref().and_then(|d| d.hold.clone());
         let cid = (!allowed).then(correlation_id);
+        // A tool under approval is never forwarded without a consumed receipt, not even
+        // in warn-only: otherwise any refused receipt would skip the approval.
+        let gated = policy.tool(&tool).is_some_and(|t| t.approval.is_some());
         // warn-only forwards a denied call; `enforced` records that so the log never
         // reads as if the call had been blocked.
-        let enforced = allowed || mode != "warn-only";
+        let enforced = allowed || mode != "warn-only" || gated;
         let mut detail = ctx.detail().unwrap_or_default();
         if let Some(endorsements) = decision.as_ref().and_then(Decision::endorsements_json) {
             detail.insert("third_party".into(), endorsements);
+        }
+        if let Some(Value::Object(held)) = hold.as_ref().map(|h| h.audit_detail()) {
+            detail.extend(held);
+        }
+        if let Some(consumed) = decision.as_ref().and_then(|d| d.approval.as_ref()) {
+            detail.insert("approval".into(), consumed.audit_detail());
         }
         if let Some(warning) = state
             .config
@@ -786,7 +901,14 @@ async fn handle_inner(
                 map
             });
         ctx.audit(Record {
-            decision: if allowed { "ALLOW" } else { "DENY" }.into(),
+            decision: if hold.is_some() {
+                "HOLD"
+            } else if allowed {
+                "ALLOW"
+            } else {
+                "DENY"
+            }
+            .into(),
             method: Some(method.clone()),
             tool: Some(tool.clone()),
             agent_id: decision.as_ref().and_then(|d| d.agent_id.clone()),
@@ -806,7 +928,16 @@ async fn handle_inner(
             ..Default::default()
         })
         .await?;
-        if !allowed && mode != "warn-only" {
+        if let Some(hold) = &hold {
+            return Ok(match &request_id {
+                None => empty(StatusCode::ACCEPTED),
+                Some(id) => json_response(
+                    StatusCode::OK,
+                    &hold_result(id.clone(), cid.as_deref().unwrap_or_default(), hold),
+                ),
+            });
+        }
+        if !allowed && (mode != "warn-only" || gated) {
             return Ok(match &request_id {
                 None => empty(StatusCode::ACCEPTED),
                 Some(id) => json_response(
@@ -817,6 +948,7 @@ async fn handle_inner(
         }
         if let Some(decision) = decision.as_ref().filter(|d| d.allow) {
             forward_headers.principal = Some((decision.issuer.clone(), decision.subject.clone()));
+            approved = decision.approval.clone().map(|a| (tool.clone(), a));
         }
         outgoing = match policy.tool(&tool).and_then(|t| t.upstream_tool.clone()) {
             Some(alias) => rename_tool(&message, &alias),
@@ -894,9 +1026,14 @@ async fn handle_inner(
         .await;
     }
 
-    let response = upstream
+    let forwarded = upstream
         .forward("POST", Bytes::from(outgoing), &forward_headers)
-        .await?;
+        .await;
+    if let Some((tool, receipt)) = &approved {
+        ctx.outcome(tool, receipt, outcome_state(&forwarded))
+            .await?;
+    }
+    let response = forwarded?;
     let (mut messages, _) = response_messages(
         response.status,
         response.header("content-type"),
@@ -995,6 +1132,9 @@ fn client_host(request: &Request) -> String {
 /// so the per-client rate limit sees real peer addresses.
 pub fn create_app(config: ProxyConfig) -> Result<Router> {
     config.validate()?;
+    // Approved calls a previous process left in flight past their lease: settle them
+    // before serving anything.
+    sweep_receipts(&config.verifier, config.audit.as_deref())?;
     let upstreams: HashMap<Option<String>, SharedUpstream> = config
         .upstreams
         .iter()
@@ -1010,6 +1150,7 @@ pub fn create_app(config: ProxyConfig) -> Result<Router> {
         upstreams,
         rates: Mutex::new(Rates::default()),
         sessions: Mutex::new(Sessions::default()),
+        last_sweep: Mutex::new(Instant::now()),
     });
     let mut router = Router::new();
     for name in names {

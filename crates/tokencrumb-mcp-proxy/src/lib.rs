@@ -4,6 +4,7 @@
 //! capability on every tool call, allows or refuses, and records a verifiable,
 //! signed audit trail.
 
+pub mod approval;
 pub mod attestation;
 pub mod audit;
 pub mod biscuit_ops;

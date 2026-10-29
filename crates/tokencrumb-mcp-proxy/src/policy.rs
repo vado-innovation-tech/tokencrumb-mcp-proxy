@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
+use crate::approval::{ApprovalRequirement, ApproverGroup, parse_approvers, parse_requirement};
 use crate::canonical::{canonicalize_prefix, sha256_hex};
 use crate::duration::parse_duration;
 use crate::error::{Error, Result, py_repr};
@@ -113,6 +114,8 @@ pub struct ToolPolicy {
     pub args: Vec<ArgMapping>,
     /// Endorsements this tool needs from third-party authorities, all of them.
     pub require_third_party: Vec<ThirdPartyRequirement>,
+    /// `approval:` — a receipt signed by a registered approver for each call.
+    pub approval: Option<ApprovalRequirement>,
 }
 
 /// Runtime bounds on one Datalog evaluation (anti-DoS). Defaults mirror biscuit-auth's
@@ -160,6 +163,8 @@ pub struct Policy {
     pub tools: Vec<ToolPolicy>,
     /// Third-party authorities, in declaration order.
     pub third_party: Vec<ThirdPartyAuthority>,
+    /// Approver groups (`approvers:`), in declaration order.
+    pub approvers: Vec<ApproverGroup>,
     pub mcp: McpPolicy,
     /// SHA-256 of the raw policy bytes, recorded on every audit entry.
     pub policy_digest: String,
@@ -179,6 +184,7 @@ impl Default for Policy {
             upstreams: Vec::new(),
             tools: Vec::new(),
             third_party: Vec::new(),
+            approvers: Vec::new(),
             mcp: McpPolicy::default(),
             policy_digest: String::new(),
         }
@@ -213,6 +219,11 @@ impl Policy {
         self.third_party
             .iter()
             .find(|a| a.keys.iter().any(|k| k == key))
+    }
+
+    /// True when at least one tool is confirmed by an approval receipt.
+    pub fn has_approval(&self) -> bool {
+        self.tools.iter().any(|t| t.approval.is_some())
     }
 
     pub fn upstream(&self, name: &str) -> Option<&str> {
@@ -464,6 +475,7 @@ pub fn parse_policy(raw: &Value) -> Result<Policy> {
             "revocation",
             "clock_skew_seconds",
             "third_party",
+            "approvers",
         ],
         "policy",
     )?;
@@ -505,6 +517,7 @@ pub fn parse_policy(raw: &Value) -> Result<Policy> {
     }
 
     let third_party = parse_third_party(get_or(raw, "third_party", &empty_map))?;
+    let approvers = parse_approvers(get_or(raw, "approvers", &empty_map), &third_party)?;
 
     let mut tools: Vec<ToolPolicy> = Vec::new();
     for entry in list(get_or(raw, "tools", &empty_list), "tools")? {
@@ -520,6 +533,7 @@ pub fn parse_policy(raw: &Value) -> Result<Policy> {
                 "require",
                 "args",
                 "require_third_party",
+                "approval",
             ],
             "tool",
         )?;
@@ -596,6 +610,10 @@ pub fn parse_policy(raw: &Value) -> Result<Policy> {
             Some(v) => Some(integer_value(v, "allow.budget", 0, MAX_INTEGER)?),
             None => None,
         };
+        let approval = match entry.get("approval") {
+            Some(raw) => Some(parse_requirement(&name, raw, &approvers, &require)?),
+            None => None,
+        };
         tools.push(ToolPolicy {
             name,
             operation,
@@ -608,6 +626,7 @@ pub fn parse_policy(raw: &Value) -> Result<Policy> {
             require,
             args,
             require_third_party,
+            approval,
         });
     }
 
@@ -711,6 +730,7 @@ pub fn parse_policy(raw: &Value) -> Result<Policy> {
         upstreams,
         tools,
         third_party,
+        approvers,
         mcp: McpPolicy {
             spec_version: spec.to_owned(),
             allow_methods: methods,
@@ -753,7 +773,11 @@ pub struct PolicyReloader {
     on_event: PolicyEventSink,
     frozen: Policy,
     state: Mutex<ReloadState>,
+    validator: Option<PolicyValidator>,
 }
+
+/// A check a reloaded policy must also pass (rules that need keys the file lacks).
+pub type PolicyValidator = Box<dyn Fn(&Policy) -> Result<()> + Send + Sync>;
 
 struct ReloadState {
     policy: Arc<Policy>,
@@ -796,7 +820,14 @@ impl PolicyReloader {
                 snapshot: initial,
                 checked_at: Instant::now(),
             }),
+            validator: None,
         }
+    }
+
+    /// Refuse, like an invalid file, a reloaded policy that `validator` rejects.
+    pub fn with_validator(mut self, validator: PolicyValidator) -> Self {
+        self.validator = Some(validator);
+        self
     }
 
     /// The policy in force now (re-reading the file at most every `min_interval`).
@@ -840,6 +871,13 @@ impl PolicyReloader {
                         "error",
                         "policy reload refused: the upstream set is fixed at startup \
                          (endpoints are routes); revocation path is fixed too; restart to change it",
+                    );
+                    return state.policy.clone();
+                }
+                if let Some(Err(e)) = self.validator.as_ref().map(|check| check(&policy)) {
+                    (self.on_event)(
+                        "error",
+                        &format!("policy reload refused ({e}); keeping the policy in force"),
                     );
                     return state.policy.clone();
                 }

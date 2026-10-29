@@ -8,6 +8,7 @@
 //! file or the token itself, forged tokens on stdout with status on stderr, refusals
 //! as `error: <message>` on stderr with exit code 1, usage errors with exit code 2.
 
+mod approve;
 mod render;
 mod wrap;
 
@@ -40,13 +41,13 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
-    /// Generate an Ed25519 keypair (authority root, agent identity, audit signer or
-    /// third-party authority).
+    /// Generate an Ed25519 keypair (authority root, agent identity, audit signer,
+    /// third-party authority or human approver).
     Keygen {
         /// Base name; writes `<out>.key` and `<out>.pub`
         #[arg(long)]
         out: String,
-        /// authority | agent | audit | third-party
+        /// authority | agent | audit | third-party | approver
         #[arg(long = "type", default_value = "authority")]
         key_type: String,
         /// Encrypt the private key (scrypt+AES-GCM)
@@ -327,6 +328,43 @@ pub enum Command {
         /// CA bundle (PEM) trusted for the proxy's TLS cert
         #[arg(long)]
         ca: Option<String>,
+        /// Human approval: write held calls to <dir>/requests, attach the matching
+        /// receipt from <dir>/receipts to the identical replay, move it to <dir>/used
+        #[arg(long)]
+        approval_dir: Option<String>,
+    },
+    /// Show a held call's request, recompute its hashes and sign a single-use
+    /// approval receipt for exactly that call (approver side).
+    Approve {
+        /// Request file written by `client-wrap --approval-dir` (requests/<id>.json)
+        #[arg(long)]
+        request: String,
+        /// Approver private key file
+        #[arg(long)]
+        key: String,
+        /// Approver id, as registered in the gateway policy
+        #[arg(long)]
+        approver_id: String,
+        /// Receipt lifetime, at most the tool's receipt_ttl
+        #[arg(long, default_value = "5m")]
+        ttl: String,
+        #[arg(long)]
+        passphrase: Option<String>,
+        /// Receipt file (e.g. <dir>/receipts/<id>.json); stdout when absent
+        #[arg(long)]
+        out: Option<String>,
+        /// Sign without asking for confirmation (tests and scripted demos)
+        #[arg(long)]
+        yes: bool,
+    },
+    /// Decode an approval receipt and check its signature offline.
+    InspectReceipt {
+        /// Receipt file
+        #[arg(long)]
+        receipt: String,
+        /// Also check that it covers this request file
+        #[arg(long)]
+        request: Option<String>,
     },
     /// Validate a policy and publish it by atomic replacement for hot reload.
     PolicyInstall { source: String, destination: String },
@@ -766,6 +804,7 @@ fn run(command: Command) -> Outcome {
             agent_id,
             passphrase,
             ca,
+            approval_dir,
         } => wrap::client_wrap(
             &proxy,
             &token,
@@ -773,7 +812,28 @@ fn run(command: Command) -> Outcome {
             agent_id.as_deref(),
             passphrase.as_deref(),
             ca.as_deref(),
+            approval_dir.as_deref(),
         ),
+        Command::Approve {
+            request,
+            key,
+            approver_id,
+            ttl,
+            passphrase,
+            out,
+            yes,
+        } => approve::approve(
+            &request,
+            &key,
+            &approver_id,
+            &ttl,
+            passphrase.as_deref(),
+            out.as_deref(),
+            yes,
+        ),
+        Command::InspectReceipt { receipt, request } => {
+            approve::inspect_receipt(&receipt, request.as_deref())
+        }
         Command::PolicyInstall {
             source,
             destination,
@@ -937,7 +997,8 @@ fn runtime() -> Result<tokio::runtime::Runtime, Exit> {
 // --------------------------------------------------------------------------- //
 
 fn keygen(out: &str, key_type: &str, passphrase: Option<&str>) -> Outcome {
-    if !["authority", "agent", "audit", "third-party"].contains(&key_type) {
+    if !["authority", "agent", "audit", "third-party", "approver"].contains(&key_type) {
+        // The message predates `approver` and is part of the tested CLI contract.
         return fail("--type must be 'authority', 'agent', 'audit' or 'third-party'");
     }
     let kp = keys::generate_keypair();

@@ -1,0 +1,42 @@
+# TokenCrumb - MCP Proxy: example policy with human approval (HOLD).
+# delete_file is confirmed: each call needs a single-use receipt signed by a
+# registered approver for exactly that call. Replace the approver keys with the
+# public keys printed by `tokencrumb keygen --type approver`.
+mode: enforce
+deny_unknown_tools: true
+min_profile: hardened_biscuit_anchored
+max_ttl: 8h
+clock_skew_seconds: 30
+approvers:
+  ops:
+    members:
+      - id: a.dupont
+        keys: [ed25519/REPLACE_WITH_A_DUPONT_CURRENT_KEY]
+      - id: b.martin
+        keys: [ed25519/REPLACE_WITH_B_MARTIN_KEY]
+tools:
+  - name: read_file
+    operation: read
+    resource:
+      from: arguments.path
+    allow:
+      resource_prefix: /workspace/
+      budget: 200
+    require:
+      - call_signature_valid
+      - nonce_fresh
+      - arguments_bound
+  - name: delete_file
+    operation: write
+    resource:
+      from: arguments.path
+    allow:
+      resource_prefix: /workspace/
+      budget: 20
+    require:
+      - call_signature_valid
+      - nonce_fresh
+      - arguments_bound
+    approval:
+      approvers: [ops]
+      receipt_ttl: 5m
