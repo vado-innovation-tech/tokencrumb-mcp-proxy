@@ -1673,3 +1673,58 @@ fn end_to_end_hold_approve_replay_with_the_binary() {
         common::stderr(&verified)
     );
 }
+
+#[tokio::test]
+async fn a_modern_era_hold_carries_result_type() {
+    // MCP 2026-07-28: every gateway result carries `resultType`, the HOLD answer included.
+    let g = Gw::new();
+    // A modern upstream: its `server/discover` answer settles the era probe.
+    let upstream = FakeUpstream::new(
+        Some(
+            json!({"jsonrpc": "2.0", "id": 1, "result": {"resultType": "complete",
+                    "supportedVersions": ["2026-07-28"], "capabilities": {"tools": {}}}}),
+        ),
+        "application/json",
+    );
+    let app = g.app(&upstream);
+    let token = g.token();
+    let arguments = json!({"path": PATH});
+    let attestation = build_attestation(
+        AGENT,
+        TOOL,
+        &arguments,
+        &token,
+        &g.world.agent.private_str,
+        Some(g.now()),
+    )
+    .unwrap();
+    let auth = bearer(&token);
+    let reply = post(
+        &app,
+        json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+               "params": {"name": TOOL, "arguments": arguments,
+                          "_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                                    "io.modelcontextprotocol/clientCapabilities": {},
+                                    "io.modelcontextprotocol/clientInfo": {"name": "agent", "version": "1"}}}}),
+        &[
+            ("authorization", auth.as_str()),
+            ("agent-attestation", attestation.as_str()),
+            ("mcp-protocol-version", "2026-07-28"),
+            ("mcp-method", "tools/call"),
+            ("mcp-name", TOOL),
+        ],
+    )
+    .await;
+
+    // The era probe may reach upstream; the held call never does.
+    let methods: Vec<Value> = upstream
+        .bodies()
+        .iter()
+        .map(|b| b["method"].clone())
+        .collect();
+    assert!(!methods.contains(&json!("tools/call")), "{methods:?}");
+    let result = &reply.json()["result"];
+    assert_eq!(result["resultType"], json!("complete"), "{}", reply.text());
+    assert!(!approval_required(&reply).is_null());
+    assert_eq!(g.last()["decision"], "HOLD");
+}

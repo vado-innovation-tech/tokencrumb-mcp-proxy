@@ -1179,10 +1179,14 @@ async fn handle_inner(
         if let Some(hold) = &hold {
             return Ok(match &request_id {
                 None => empty(StatusCode::ACCEPTED),
-                Some(id) => json_response(
-                    StatusCode::OK,
-                    &hold_result(id.clone(), cid.as_deref().unwrap_or_default(), hold),
-                ),
+                Some(id) => {
+                    let mut held =
+                        hold_result(id.clone(), cid.as_deref().unwrap_or_default(), hold);
+                    if modern {
+                        held["result"]["resultType"] = json!("complete");
+                    }
+                    json_response(StatusCode::OK, &held)
+                }
             });
         }
         if !allowed && (mode != "warn-only" || gated) {
