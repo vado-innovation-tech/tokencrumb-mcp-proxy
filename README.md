@@ -267,6 +267,34 @@ tokencrumb third-party-append --token state/capability.b64 \
   --third-party-pub state/approver.pub --out state/endorsed.b64
 ```
 
+#### Third-party grants
+
+A tool can also be **owned** by one third-party authority, such as a partner organization serving its own resources. Its grant stands in for the root `right`: the tool is allowed if the authority block grants it **or** if its owner signed `grant(tool, resource_prefix, expires_at)` for it.
+
+```yaml
+third_party:
+  partner:
+    keys: [ed25519/<key>]
+    predicates: [grant]
+tools:
+  - name: share_file
+    operation: write
+    resource:
+      from: arguments.path
+    grant_third_party:
+      authority: partner
+      predicate: grant
+```
+
+`grant_third_party` names a single authority, so a tool has at most one owner, and a grant reaches only the tools its owner is named on: a grant for any other tool changes nothing. The grant follows the endorsement rules above (tool, resource prefix, expiry, `trusting` check, block contents), is bound to the token and does not count as a delegation step. A predicate used for grants cannot also be required as an endorsement anywhere in the policy, so an approval is never read as a grant. A granted tool still needs its other checks: required endorsements, approval, budget, profile and attestation. Holder-appended blocks still narrow it, and the same fact or a `right` in a holder-appended block is ignored. A denial names the missing grant (`third-party grant missing: partner.grant`).
+
+The root authority no longer bounds such a tool: its owner can grant it to any holder of a valid mandate for this gateway. Declare an owner only for tools whose resources that authority controls, and protect its key like an authority key.
+
+```sh
+tokencrumb third-party-sign --key state/partner.key --request state/request.b64 \
+  --predicate grant --tool share_file --resource-prefix /partner/ --ttl 1h --out state/grant.b64
+```
+
 `revoke --from-token <token> --block <index>` revokes a single endorsement: every token carrying that block, including later attenuations, is refused, while the mandate as it was before the endorsement stays valid and can be endorsed again.
 
 ### Human approval (HOLD)
@@ -469,7 +497,7 @@ The issuer signs the authority block of a Biscuit capability. Holders can append
 
 The authority public key is the trust anchor. An issuer name is signed metadata, not a replacement for a trusted key. Governed identity fields are accepted only from the authority block. Appended blocks cannot substitute an agent key, audience or issuer identity.
 
-Third-party authorities are a second, narrower kind of trust anchor: their keys are declared in the policy with the predicates each may state, and the proxy reads those predicates only from blocks carrying a valid external signature by one of those keys. They can endorse a call the root authority already granted; they cannot grant one.
+Third-party authorities are a second, narrower kind of trust anchor: their keys are declared in the policy with the predicates each may state, and the proxy reads those predicates only from blocks carrying a valid external signature by one of those keys. They can endorse a call the root authority already granted. They grant only the tools the policy names them owner of, with `grant_third_party`, in place of the root right.
 
 ### Verification
 
@@ -519,6 +547,7 @@ The default policy requires `hardened_biscuit_anchored`. A stolen capability alo
 | Token for another deployment or route | Audience and upstream checks | `audience_upstream`, `multi_upstream` |
 | Broader delegation | Append-only restrictions and tightest signed bounds | `delegation_depth`, `tool_attenuation` |
 | Forged, replayed or overreaching endorsement | External signature bound to the token, declared keys, delegated predicates, `trusting` checks | `third_party` |
+| Grant beyond the owner's tools, or self-granted | One owner per tool, grant predicates kept apart from endorsements, `trusting` checks | `third_party_grants` |
 | Unapproved, altered or replayed confirmed call | Receipt bound to the call's intent, registered approver keys, durable single-use consumption | `approval` |
 | Budget reset after attenuation or restart | Root-based counters and durable state | `budget_two_level`, `budget_persist`, `one_shot` |
 | Policy or parser confusion | Strict JSON/YAML, typed metadata and bounded Datalog | `security_configuration`, `security_contract`, `datalog_limits` |
@@ -533,6 +562,7 @@ These tests establish specific local behaviors, not a certification of any deplo
 - An operator controlling the host can change policy, keys, code, clock or persistent state. Cryptography does not make that operator untrusted by default.
 - An issuer holding a trusted authority private key can issue new capabilities. Accepting several roots means any accepted root can authorize; it is not a quorum.
 - A human approver decides only what is displayed to them; see the [approval limits](#human-approval-hold). A held call costs no budget and held requests are not capped.
+- A third-party owner grants its tools to any holder of a mandate for this gateway; the root authority does not bound them.
 - A third-party authority decides only what it signs. The proxy checks the endorsement's tool, resource prefix and expiry, not how the third party reached its decision; protect its private key like an authority key.
 - An agent with valid keys can abuse any operation actually granted to it. The proxy does not make model output truthful or prevent prompt injection from selecting an allowed tool.
 - Resource mappings depend on upstream semantics. Canonicalizing a path does not resolve symlinks or prove what a remote tool will read.
