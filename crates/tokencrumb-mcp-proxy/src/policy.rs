@@ -158,6 +158,10 @@ pub struct ToolPolicy {
     pub args: Vec<ArgMapping>,
     /// Endorsements this tool needs from third-party authorities, all of them.
     pub require_third_party: Vec<ThirdPartyRequirement>,
+    /// `grant_third_party:` — the one third-party authority that may grant this tool,
+    /// `predicate(tool, resource_prefix, expires_at)` standing in for the authority block's
+    /// `right`. It owns the tool: a single authority, never shared.
+    pub grant_third_party: Option<ThirdPartyRequirement>,
     /// `approval:` — a receipt signed by a registered approver for each call.
     pub approval: Option<ApprovalRequirement>,
 }
@@ -453,47 +457,71 @@ fn parse_requirements(
 ) -> Result<Vec<ThirdPartyRequirement>> {
     let mut out: Vec<ThirdPartyRequirement> = Vec::new();
     for entry in list(raw, "require_third_party")? {
-        let entry = mapping(
-            entry,
-            &["authority", "predicate"],
-            &format!("{tool}.require_third_party"),
-        )?;
-        let authority = string_value(entry.get("authority"), "require_third_party.authority", 64)?;
-        let Some(declared) = authorities.iter().find(|a| a.name == authority) else {
-            return Err(Error::value(format!(
-                "tool {}: third-party authority {} is not declared in `third_party:`",
-                py_repr(tool),
-                py_repr(authority)
-            )));
-        };
-        let predicate = match entry.get("predicate") {
-            Some(v) => string_value(Some(v), "require_third_party.predicate", 64)?,
-            None if declared.predicates.len() == 1 => declared.predicates[0].as_str(),
-            None => {
-                return Err(Error::value(format!(
-                    "tool {}: name the predicate required from {}",
-                    py_repr(tool),
-                    py_repr(authority)
-                )));
-            }
-        };
-        if !declared.predicates.iter().any(|p| p == predicate) {
-            return Err(Error::value(format!(
-                "tool {}: {} is not delegated to {}",
-                py_repr(tool),
-                py_repr(predicate),
-                py_repr(authority)
-            )));
-        }
-        let requirement = ThirdPartyRequirement {
-            authority: authority.to_owned(),
-            predicate: predicate.to_owned(),
-        };
+        let requirement = parse_requirement_entry(tool, entry, authorities, "require_third_party")?;
         if !out.contains(&requirement) {
             out.push(requirement);
         }
     }
     Ok(out)
+}
+
+/// `{authority, predicate}`: a declared authority and one of its delegated predicates.
+fn parse_requirement_entry(
+    tool: &str,
+    entry: &Value,
+    authorities: &[ThirdPartyAuthority],
+    field: &str,
+) -> Result<ThirdPartyRequirement> {
+    let entry = mapping(
+        entry,
+        &["authority", "predicate"],
+        &format!("{tool}.{field}"),
+    )?;
+    let authority = string_value(entry.get("authority"), &format!("{field}.authority"), 64)?;
+    let Some(declared) = authorities.iter().find(|a| a.name == authority) else {
+        return Err(Error::value(format!(
+            "tool {}: third-party authority {} is not declared in `third_party:`",
+            py_repr(tool),
+            py_repr(authority)
+        )));
+    };
+    let predicate = match entry.get("predicate") {
+        Some(v) => string_value(Some(v), &format!("{field}.predicate"), 64)?,
+        None if declared.predicates.len() == 1 => declared.predicates[0].as_str(),
+        None => {
+            return Err(Error::value(format!(
+                "tool {}: name the predicate required from {}",
+                py_repr(tool),
+                py_repr(authority)
+            )));
+        }
+    };
+    if !declared.predicates.iter().any(|p| p == predicate) {
+        return Err(Error::value(format!(
+            "tool {}: {} is not delegated to {}",
+            py_repr(tool),
+            py_repr(predicate),
+            py_repr(authority)
+        )));
+    }
+    Ok(ThirdPartyRequirement {
+        authority: authority.to_owned(),
+        predicate: predicate.to_owned(),
+    })
+}
+
+/// A predicate that grants never also endorses: otherwise an endorsement signed for one
+/// tool's approval would read as a grant, and a reviewer could not tell the two apart.
+fn grants_apart_from_endorsements(tools: &[ToolPolicy]) -> Result<()> {
+    for grant in tools.iter().filter_map(|t| t.grant_third_party.as_ref()) {
+        if tools.iter().any(|t| t.require_third_party.contains(grant)) {
+            return Err(Error::value(format!(
+                "{}.{} both grants and endorses: use a distinct predicate for grants",
+                grant.authority, grant.predicate
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn get_or<'a>(map: &'a serde_json::Map<String, Value>, key: &str, default: &'a Value) -> &'a Value {
@@ -577,6 +605,7 @@ pub fn parse_policy(raw: &Value) -> Result<Policy> {
                 "require",
                 "args",
                 "require_third_party",
+                "grant_third_party",
                 "approval",
             ],
             "tool",
@@ -645,6 +674,15 @@ pub fn parse_policy(raw: &Value) -> Result<Policy> {
             get_or(entry, "require_third_party", &empty_list),
             &third_party,
         )?;
+        let grant_third_party = match entry.get("grant_third_party") {
+            Some(raw) => Some(parse_requirement_entry(
+                &name,
+                raw,
+                &third_party,
+                "grant_third_party",
+            )?),
+            None => None,
+        };
         let upstream = resolve_upstream(&name, entry.get("upstream"), &upstreams)?;
         let upstream_tool = match entry.get("upstream_tool") {
             Some(v) => Some(string_value(Some(v), "upstream_tool", 256)?.to_owned()),
@@ -670,9 +708,11 @@ pub fn parse_policy(raw: &Value) -> Result<Policy> {
             require,
             args,
             require_third_party,
+            grant_third_party,
             approval,
         });
     }
+    grants_apart_from_endorsements(&tools)?;
 
     let m = mapping(
         get_or(raw, "mcp", &empty_map),

@@ -25,7 +25,9 @@ use crate::error::{Error, Result, py_repr};
 use crate::isotime::timestamp;
 use crate::keys::biscuit_public;
 use crate::nonce_cache::{NonceCache, NonceStore, ReceiptStore, Reservation};
-use crate::policy::{Limits, Policy, ToolPolicy, extract_resource, mapped_args};
+use crate::policy::{
+    Limits, Policy, ThirdPartyRequirement, ToolPolicy, extract_resource, mapped_args,
+};
 use crate::profiles;
 use crate::revocation::RevocationSource;
 use crate::token_contract::{Endorsement, Term, block_facts, metadata, third_party_blocks};
@@ -266,6 +268,15 @@ fn approval_ready(
         ));
     }
     Ok(())
+}
+
+/// `authority.predicate` of the grant a tool accepts when neither the authority block's
+/// right nor that grant was found: the rendering of its combined check.
+fn missing_grant(tp: &ToolPolicy, message: &str) -> Option<String> {
+    tp.grant_third_party
+        .as_ref()
+        .filter(|g| message.contains(&format!("or {}(", g.predicate)))
+        .map(|g| format!("{}.{}", g.authority, g.predicate))
 }
 
 /// `authority.predicate` of each required endorsement whose check failed, read from the
@@ -1032,7 +1043,11 @@ impl Verifier {
                         format!(" for {}", describe(combination))
                     };
                     let missing = missing_endorsements(tp, &policy, &message);
-                    let message = if missing.is_empty() {
+                    let message = if let Some(grant) = missing_grant(tp, &message) {
+                        format!(
+                            "not granted: no right in the authority block and third-party grant missing: {grant} (absent, expired or out of scope)"
+                        )
+                    } else if missing.is_empty() {
                         message
                     } else {
                         format!(
@@ -1295,8 +1310,44 @@ impl Verifier {
                 }
             }
         }
-        // base checks derived from the tool mapping, in their historical order
-        lines.push("check if right({tool}, {o});".into());
+        // Third-party endorsements and grants: `predicate(tool, prefix, expiry)` read ONLY
+        // from blocks signed by that authority's keys. Without `trusting`, Biscuit would not
+        // let the authorizer see them at all; with it, nothing else is widened.
+        let mut scope_params: HashMap<String, biscuit_auth::PublicKey> = HashMap::new();
+        let mut third_party_check = |tag: &str, requirement: &ThirdPartyRequirement| {
+            let Some(authority) = policy.third_party_authority(&requirement.authority) else {
+                return Err(AuthorizeError::Broken(format!(
+                    "undeclared third-party authority {}",
+                    requirement.authority
+                )));
+            };
+            let mut scopes = Vec::new();
+            for (j, key) in authority.keys.iter().enumerate() {
+                let name = format!("{tag}k{j}");
+                let key = biscuit_public(key).map_err(|e| AuthorizeError::Broken(e.message))?;
+                scope_params.insert(name.clone(), key);
+                scopes.push(format!("{{{name}}}"));
+            }
+            let body = if resource.is_some() {
+                "{tool}, $p, $e), resource($r), $r.starts_with($p)"
+            } else {
+                "{tool}, \"\", $e)"
+            };
+            Ok(format!(
+                "{}({body}, time($t), $t < $e trusting {}",
+                requirement.predicate,
+                scopes.join(", ")
+            ))
+        };
+        // base checks derived from the tool mapping, in their historical order. A granted
+        // tool also accepts its owner's grant in place of the authority block's right.
+        match &tp.grant_third_party {
+            None => lines.push("check if right({tool}, {o});".into()),
+            Some(grant) => {
+                let granted = third_party_check("tg", grant)?;
+                lines.push(format!("check if right({{tool}}, {{o}}) or {granted};"));
+            }
+        }
         if let Some(exact) = &tp.resource_exact {
             lines.push("check if resource({rx});".into());
             params.insert("rx".into(), BiscuitTerm::Str(exact.clone()));
@@ -1311,34 +1362,9 @@ impl Verifier {
         for name in &tp.require {
             lines.push(format!("check if {name}(true);"));
         }
-        // Third-party endorsements: `predicate(tool, prefix, expiry)` read ONLY from
-        // blocks signed by that authority's keys. Without `trusting`, Biscuit would not
-        // let the authorizer see them at all; with it, nothing else is widened.
-        let mut scope_params: HashMap<String, biscuit_auth::PublicKey> = HashMap::new();
         for (i, requirement) in tp.require_third_party.iter().enumerate() {
-            let Some(authority) = policy.third_party_authority(&requirement.authority) else {
-                return Err(AuthorizeError::Broken(format!(
-                    "undeclared third-party authority {}",
-                    requirement.authority
-                )));
-            };
-            let mut scopes = Vec::new();
-            for (j, key) in authority.keys.iter().enumerate() {
-                let name = format!("tp{i}k{j}");
-                let key = biscuit_public(key).map_err(|e| AuthorizeError::Broken(e.message))?;
-                scope_params.insert(name.clone(), key);
-                scopes.push(format!("{{{name}}}"));
-            }
-            let body = if resource.is_some() {
-                "{tool}, $p, $e), resource($r), $r.starts_with($p)"
-            } else {
-                "{tool}, \"\", $e)"
-            };
-            lines.push(format!(
-                "check if {}({body}, time($t), $t < $e trusting {};",
-                requirement.predicate,
-                scopes.join(", ")
-            ));
+            let endorsed = third_party_check(&format!("tp{i}"), requirement)?;
+            lines.push(format!("check if {endorsed};"));
         }
         lines.push("allow if operation($o);".into());
 

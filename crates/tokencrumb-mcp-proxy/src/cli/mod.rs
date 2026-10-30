@@ -158,10 +158,11 @@ pub enum Command {
         #[arg(long)]
         out: Option<String>,
     },
-    /// Sign an endorsement block for a third-party request (third-party side).
+    /// Sign an endorsement or grant block for a third-party request (third-party side).
     ///
     /// Writes `predicate(tool, resource_prefix, expires_at)` for each --tool. The
-    /// gateway reads it only for tools whose policy requires this authority.
+    /// gateway reads it only for tools whose policy requires this authority or names it
+    /// owner (`grant_third_party`).
     ThirdPartySign {
         /// Third-party private key file
         #[arg(long)]

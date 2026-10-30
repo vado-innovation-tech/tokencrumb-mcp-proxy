@@ -17,7 +17,8 @@
 //! Third-party blocks are signed by a second authority that never sees the token: the
 //! holder sends it a request bound to the token's last signature, the authority returns
 //! a signed block, and the holder appends it. The proxy reads the endorsed facts only
-//! through `trusting <key>` checks, so they cannot widen anything else.
+//! through `trusting <key>` checks, so they cannot widen anything else; a grant widens
+//! only the tools the policy names that authority owner of.
 
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -341,8 +342,8 @@ pub struct Attenuation {
     pub ttl_seconds: Option<i128>,
     pub upstream: Option<String>,
     pub max_delegation_depth: Option<i128>,
-    /// Keep only these tools (public names). Never grants one: the issuer's right
-    /// is still required.
+    /// Keep only these tools (public names). Never grants one: the issuer's right, or
+    /// a third-party grant for an owned tool, is still required.
     pub tools: Vec<String>,
 }
 
