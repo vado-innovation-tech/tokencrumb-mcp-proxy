@@ -32,6 +32,10 @@
 - Temporarily use custom `biscuit-auth` 6.0.0-tokencrumb.1 to disable unused Datalog macros and remove `biscuit-quote` and `proc-macro-error2` from the resolved dependencies. Verify the vendored source and audit both the build lockfile and Biscuit's official upstream base; see [provenance and removal criteria](README.md#temporary-biscuit-dependency).
 - Disable registry publication while the custom Biscuit dependency requires a full checkout.
 
+### Fixed
+
+- Record the same `identity.mandate_id` for a mandate in allowed and refused audit entries: the authority block's revocation identifier, also when the mandate carries a `jti`. Refusals previously recorded the `jti`.
+
 ### Dependency updates
 
 - Update `rustls` to 0.23.46, `rustls-webpki` to 0.103.16, `webpki-roots` to 1.0.10 and `tokio` to 1.54.1 to address RUSTSEC-2026-0346 to 0349, 0381, 0382 and 0386.
