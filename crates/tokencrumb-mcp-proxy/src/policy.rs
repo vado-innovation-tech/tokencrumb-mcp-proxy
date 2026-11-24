@@ -214,8 +214,58 @@ pub struct Policy {
     /// Approver groups (`approvers:`), in declaration order.
     pub approvers: Vec<ApproverGroup>,
     pub mcp: McpPolicy,
+    /// `declared` lists every tool the policy maps on the endpoint; `granted` lists only
+    /// those the caller's mandate grants (ADR 0007: the catalog itself is sensitive).
+    pub tools_list: String,
+    /// Data flows between upstreams within one Code Mode script (ADR 0007).
+    pub flows: FlowPolicy,
     /// SHA-256 of the raw policy bytes, recorded on every audit entry.
     pub policy_digest: String,
+}
+
+/// Which upstream may be called after which other one within a single script.
+///
+/// Once a script has made an allowed call to `from`, a call to `to` in the same script
+/// is refused when the pair is denied. Calls to the same upstream are always allowed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FlowPolicy {
+    pub default_allow: bool,
+    pub allow: Vec<(String, String)>,
+    pub deny: Vec<(String, String)>,
+}
+
+impl Default for FlowPolicy {
+    fn default() -> Self {
+        Self {
+            default_allow: true,
+            allow: Vec::new(),
+            deny: Vec::new(),
+        }
+    }
+}
+
+impl FlowPolicy {
+    /// True when data read from `from` may reach `to`. An explicit denial wins over an
+    /// explicit permission, which wins over the default.
+    pub fn permits(&self, from: &str, to: &str) -> bool {
+        if from == to {
+            return true;
+        }
+        let pair = |list: &[(String, String)]| list.iter().any(|(f, t)| f == from && t == to);
+        if pair(&self.deny) {
+            return false;
+        }
+        pair(&self.allow) || self.default_allow
+    }
+
+    /// The first upstream already touched that may not flow to `to`.
+    pub fn violation<'a>(
+        &self,
+        touched: impl IntoIterator<Item = &'a String>,
+        to: &str,
+    ) -> Option<&'a String> {
+        touched.into_iter().find(|from| !self.permits(from, to))
+    }
 }
 
 impl Default for Policy {
@@ -234,6 +284,8 @@ impl Default for Policy {
             third_party: Vec::new(),
             approvers: Vec::new(),
             mcp: McpPolicy::default(),
+            tools_list: "declared".into(),
+            flows: FlowPolicy::default(),
             policy_digest: String::new(),
         }
     }
@@ -548,6 +600,8 @@ pub fn parse_policy(raw: &Value) -> Result<Policy> {
             "clock_skew_seconds",
             "third_party",
             "approvers",
+            "tools_list",
+            "flows",
         ],
         "policy",
     )?;
@@ -828,6 +882,15 @@ pub fn parse_policy(raw: &Value) -> Result<Policy> {
         3600,
     )?;
 
+    let default_list = Value::String("declared".into());
+    let tools_list = choice_value(
+        get_or(raw, "tools_list", &default_list),
+        &["declared", "granted"],
+        "tools_list",
+    )?
+    .to_owned();
+    let flows = parse_flows(get_or(raw, "flows", &empty_map), &upstreams)?;
+
     Ok(Policy {
         deny_unknown_tools,
         mode,
@@ -846,7 +909,63 @@ pub fn parse_policy(raw: &Value) -> Result<Policy> {
             spec_versions,
             allow_methods: methods,
         },
+        tools_list,
+        flows,
         policy_digest: String::new(),
+    })
+}
+
+fn parse_flows(raw: &Value, upstreams: &[(String, String)]) -> Result<FlowPolicy> {
+    let empty_list = Value::Array(Vec::new());
+    let raw = mapping(raw, &["default", "allow", "deny"], "flows")?;
+    if !raw.is_empty() && upstreams.len() < 2 {
+        return Err(Error::value("flows: requires at least two named upstreams"));
+    }
+    let default = Value::String("allow".into());
+    let default_allow = choice_value(
+        get_or(raw, "default", &default),
+        &["allow", "deny"],
+        "flows.default",
+    )? == "allow";
+    let pairs = |key: &str| -> Result<Vec<(String, String)>> {
+        let mut out: Vec<(String, String)> = Vec::new();
+        for entry in list(get_or(raw, key, &empty_list), &format!("flows.{key}"))? {
+            let entry = mapping(entry, &["from", "to"], &format!("flows.{key}"))?;
+            let name = |side: &str| -> Result<String> {
+                let value = string_value(entry.get(side), &format!("flows.{key}.{side}"), 256)?;
+                if !upstreams.iter().any(|(n, _)| n == value) {
+                    return Err(Error::value(format!(
+                        "flows.{key}.{side}: unknown upstream {}",
+                        py_repr(value)
+                    )));
+                }
+                Ok(value.to_owned())
+            };
+            let pair = (name("from")?, name("to")?);
+            if pair.0 == pair.1 {
+                return Err(Error::value(format!(
+                    "flows.{key}: an upstream always reaches itself"
+                )));
+            }
+            if out.contains(&pair) {
+                return Err(Error::value(format!("flows.{key}: duplicate pair")));
+            }
+            out.push(pair);
+        }
+        Ok(out)
+    };
+    let allow = pairs("allow")?;
+    let deny = pairs("deny")?;
+    if let Some(pair) = allow.iter().find(|p| deny.contains(p)) {
+        return Err(Error::value(format!(
+            "flows: {} -> {} is both allowed and denied",
+            pair.0, pair.1
+        )));
+    }
+    Ok(FlowPolicy {
+        default_allow,
+        allow,
+        deny,
     })
 }
 

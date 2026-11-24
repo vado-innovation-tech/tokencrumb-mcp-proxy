@@ -556,6 +556,37 @@ impl Verifier {
         ))
     }
 
+    /// The tools among `candidates` the presented mandate grants, for `tools_list:
+    /// granted` (ADR 0007). The mandate must pass the session checks (signature,
+    /// audience, expiry, revocation); a tool is granted when the authority block holds
+    /// `right(tool, operation)`, or when the policy lets a third party grant it (the
+    /// grant itself is only checked on call). Restrictions appended by later blocks are
+    /// not evaluated here: they still apply to every call.
+    pub fn granted_tools(&self, headers: &Headers, policy: &Policy) -> Result<Vec<String>> {
+        let (raw, _) = self.session_metadata(headers)?;
+        let token = self
+            .verify_token(&raw)
+            .ok_or_else(|| Error::value("invalid session mandate"))?;
+        let mut authorizer = AuthorizerBuilder::new()
+            .set_limits(limits(&policy.limits))
+            .build(&token)
+            .map_err(|e| Error::new(crate::ErrorKind::Biscuit, e.to_string()))?;
+        let rights: Vec<(String, String)> = authorizer
+            .query("granted($t, $o) <- right($t, $o)")
+            .map_err(|e| Error::new(crate::ErrorKind::Biscuit, e.to_string()))?;
+        Ok(policy
+            .tools
+            .iter()
+            .filter(|tool| {
+                tool.grant_third_party.is_some()
+                    || rights
+                        .iter()
+                        .any(|(t, o)| *t == tool.name && *o == tool.operation)
+            })
+            .map(|tool| tool.name.clone())
+            .collect())
+    }
+
     /// Verify one `tools/call`. `endpoint` is the upstream name the call arrived on
     /// (architecture decision 3): one process serves several endpoints, so the upstream is per call.
     ///

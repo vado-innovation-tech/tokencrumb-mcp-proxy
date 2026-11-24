@@ -215,6 +215,72 @@ These are served at `/mcp/catalog` and `/mcp/inventory`. Do not pass `--upstream
 
 An audience identifies the deployment; an upstream restriction identifies a route within it. They are distinct checks. Sessions remain scoped to their endpoint; budgets and audit state are shared.
 
+### Code Mode
+
+`code-mode` gives a stdio client one entry for several gateway endpoints, with two tools in place of every upstream tool ([ADR 0007](docs/adr/0007-code-mode.md)):
+
+- `search` runs JavaScript that filters `codemode.tools()`. Each tool comes with its TypeScript declaration. Nothing can be called from `search`.
+- `execute` runs JavaScript that calls `await codemode.<service>_<tool>(args)`.
+
+Only the script's return value and its `console.log` output go back to the model.
+
+```json
+{
+  "mcpServers": {
+    "tokencrumb": {
+      "command": "/absolute/path/to/tokencrumb",
+      "args": [
+        "code-mode",
+        "--service", "catalog=https://gateway.example.com/mcp/catalog",
+        "--service", "inventory=https://gateway.example.com/mcp/inventory",
+        "--token", "/absolute/path/to/state/capability.b64",
+        "--agent-key", "/absolute/path/to/state/agent.key"
+      ]
+    }
+  }
+}
+```
+
+**Signing and enforcement.** Each call a script makes is an ordinary `tools/call` to the service's endpoint. It carries the same mandate and a fresh attestation signed with the agent key, exactly as with `client-wrap`. Policy, budget, approval and audit therefore apply per call, unchanged. The agent key stays outside the sandbox.
+
+**Failures.** A refused or failed call raises an exception the script can catch. A call held for approval stops the script. The reply lists the calls already made and the request to approve; `--approval-dir` works as for `client-wrap`.
+
+**Sandbox.** Scripts run in an embedded QuickJS engine, one runtime per script. The engine has no file system, network, timers or module loading.
+
+**Limits.** Defaults are 64 MiB of memory, `--max-calls 50`, `--timeout-seconds 60` and `--max-output 24000` characters, with longer output truncated. A call already sent to the gateway is not interrupted: its HTTP timeouts (30 s) still apply.
+
+**Not available.** Resources, prompts, elicitation and sampling are not available through Code Mode. Use per-service entries for them.
+
+#### Gateway side
+
+```yaml
+tools_list: granted
+flows:
+  default: allow
+  deny:
+    - from: kdrive
+      to: github
+```
+
+`tools_list: granted` makes `tools/list`, and so `search`, show only the tools the presented mandate grants. A tool counts as granted when the authority block holds its `right(tool, operation)`, or when the policy lets a third party grant it. A request without a valid mandate lists nothing. Restrictions appended in later blocks are not evaluated for the listing; they still apply to every call. The default, `declared`, lists every tool the policy maps on the endpoint.
+
+**Flows.** `flows` governs data moving between upstreams within one script:
+
+- Once a script has made an allowed call to an upstream, a later call in the same script to an upstream that may not receive its data is refused. The audit reason reads `flow from <from> to <to> is denied within a script`.
+- `default` is `allow` or `deny`. An explicit `deny` pair wins over an `allow` pair, which wins over the default.
+- An upstream always reaches itself.
+- Flow refusals apply in `warn-only` mode too.
+- The state lasts one script run and is kept in memory, per mandate and run, for 15 minutes at most.
+- A new script starts clean. A model can still carry data from one script to the next through its own context; flows bound what a single unsupervised script can do.
+
+**Script audit.** `code-mode` tags each call with `TokenCrumb-Script-Run`, a random run id, and `TokenCrumb-Script-Hash` (`sha256:` of the code). Before a script's first call to an endpoint, it sends a `tokencrumb/script` request with `{run, hash, code}`. The gateway:
+
+- answers that request itself, without forwarding it;
+- requires a valid mandate and checks that the hash matches the code, which may be up to 256 KiB;
+- records a `SCRIPT` entry holding the full code.
+
+Every call entry carries `detail.script` with the run id and hash. A request with only one of the two headers, or a malformed one, is refused with HTTP 400. The headers are not signed; they are trusted as far as the client holding the agent key is.
+
 ### Upstream credentials
 
 Use environment references, not secret values on the command line:
@@ -385,6 +451,7 @@ Run `tokencrumb --help` or `tokencrumb <command> --help` for all flags. Usage er
 | `inspect-receipt` | Decode an approval receipt and check its signature offline. |
 | `serve` | Run the authorization proxy. |
 | `client-wrap` | Adapt a stdio MCP client to the proxy and sign tool calls. |
+| `code-mode` | One stdio entry for several services: `search` and `execute` run JavaScript whose calls are signed. |
 | `bootstrap` | Validate an issuer URL or verify a returned token against a provisioned trust anchor. |
 | `dpop-proof` | Produce an agent-signed proof for an issuer HTTP request. |
 | `policy-install` | Validate and atomically replace a policy file. |

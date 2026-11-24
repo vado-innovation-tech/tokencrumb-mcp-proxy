@@ -12,6 +12,7 @@ pub mod bootstrap;
 pub mod budget;
 pub mod canonical;
 pub mod client_transport;
+pub mod codemode;
 pub mod dpop;
 pub mod duration;
 pub mod error;

@@ -54,6 +54,7 @@ http.workspace = true
 url.workspace = true
 shlex.workspace = true
 subtle.workspace = true
+rquickjs.workspace = true
 
 [dev-dependencies]
 tower.workspace = true
