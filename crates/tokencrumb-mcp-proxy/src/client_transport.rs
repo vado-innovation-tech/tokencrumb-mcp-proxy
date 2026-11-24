@@ -108,6 +108,8 @@ pub struct ClientTransport {
     handshake: Vec<String>,
     /// `--approval-dir`: held calls are written there, receipts are read from there.
     pub approvals: Option<ApprovalDir>,
+    /// Code Mode: `(run id, script hash)` sent with every request while a script runs.
+    pub script: Option<(String, String)>,
 }
 
 impl ClientTransport {
@@ -128,6 +130,7 @@ impl ClientTransport {
             version: PROTOCOL_VERSION.into(),
             handshake: Vec::new(),
             approvals: None,
+            script: None,
         }
     }
 
@@ -204,6 +207,11 @@ impl ClientTransport {
             .set("MCP-Protocol-Version", &self.version);
         if let Some(session) = &self.session {
             request = request.set("MCP-Session-Id", session);
+        }
+        if let Some((run, hash)) = &self.script {
+            request = request
+                .set("TokenCrumb-Script-Run", run)
+                .set("TokenCrumb-Script-Hash", hash);
         }
         if method == "tools/call"
             && let Some(private) = &self.private

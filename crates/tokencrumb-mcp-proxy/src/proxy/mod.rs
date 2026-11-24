@@ -4,4 +4,5 @@ pub mod app;
 pub mod era;
 pub mod messages;
 pub mod runtime;
+pub mod scripts;
 pub mod upstream;

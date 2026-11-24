@@ -12,8 +12,10 @@
 //! ```text
 //! client -> server, `tools/call`   enforced by the ordered verification pipeline
 //! client -> server, `tools/list`   relayed, then filtered against the local catalog
+//!                                  (and the mandate's rights under `tools_list: granted`)
 //! client -> server, allow-listed   relayed as-is (initialize, ping, notifications)
 //! client -> server, server/discover relayed, capabilities reduced to tools
+//! client -> server, tokencrumb/script answered locally, code recorded in the audit
 //! client -> server, anything else  refused with a JSON-RPC error
 //! server -> client (GET/SSE)       channel not opened — a server can never initiate
 //! ```
@@ -45,6 +47,7 @@ use rand::RngCore;
 use serde_json::{Map, Value, json};
 
 use crate::approval::{Approved, hold_result};
+use crate::attestation::biscuit_hash;
 use crate::audit::{AuditLog, Record};
 use crate::error::{Error, ErrorKind, Result, py_repr};
 use crate::json::{dumps, strict_json};
@@ -54,9 +57,10 @@ use crate::proxy::messages::{
     INTERNAL_ERROR, INVALID_REQUEST, METHOD_NOT_FOUND, PARSE_ERROR, deny_result, error_response,
     response_messages,
 };
+use crate::proxy::scripts::{self, ScriptId, Scripts};
 use crate::proxy::upstream::{ForwardHeaders, SharedUpstream, UpstreamResponse};
 use crate::validation::choice;
-use crate::verifier::{Decision, Headers, Verifier};
+use crate::verifier::{Decision, Headers, Verifier, bearer_biscuit};
 
 /// Session headers relayed back to the client.
 const RELAY_HEADERS: &[&str] = &["mcp-session-id", "mcp-protocol-version"];
@@ -191,6 +195,8 @@ struct AppState {
     param_headers: Mutex<HashMap<ToolKey, Vec<ParamHeader>>>,
     /// When the client-capacity refusal was last written to the audit log.
     capacity_logged: Mutex<Option<Instant>>,
+    /// Upstreams each Code Mode script run has called, for `flows`.
+    scripts: Mutex<Scripts>,
 }
 
 /// Settle approved calls left `reserved` past their lease (a crash, a restart): their
@@ -928,6 +934,34 @@ async fn handle_inner(
         }
     }
 
+    // -- Code Mode: the script a call belongs to (ADR 0007) ------------------------------
+    let script = match ScriptId::from_headers(&headers) {
+        Ok(script) => script,
+        Err(_) => {
+            let cid = correlation_id();
+            ctx.deny(
+                "<script>",
+                "malformed script headers",
+                Some(&cid),
+                ctx.detail(),
+            )
+            .await?;
+            return Ok(json_response(
+                StatusCode::BAD_REQUEST,
+                &error_response(
+                    request_id.clone().unwrap_or(Value::Null),
+                    INVALID_REQUEST,
+                    "invalid request",
+                    &cid,
+                ),
+            ));
+        }
+    };
+    // Keys the per-run flow state; an invalid mandate fails verification anyway.
+    let owner = bearer_biscuit(&headers)
+        .map(|token| biscuit_hash(&token))
+        .unwrap_or_default();
+
     let refuse = |reason: String, code: i64| {
         let ctx = &ctx;
         let method = method.clone();
@@ -968,6 +1002,10 @@ async fn handle_inner(
             METHOD_NOT_FOUND,
         )
         .await;
+    }
+
+    if method == scripts::REGISTER_METHOD {
+        return register_script(&ctx, &headers, &message, request_id.clone(), modern).await;
     }
 
     if method != "tools/call" && upstream.requires_user_credentials() {
@@ -1083,6 +1121,41 @@ async fn handle_inner(
                 .await
                 .map_err(|e| Error::runtime(e.to_string()))??;
         }
+        if let (Some(script), Some(to)) = (&script, endpoint.as_deref()) {
+            let touched = state.scripts.lock().expect("scripts lock").touched(
+                &owner,
+                &script.run,
+                Instant::now(),
+            );
+            if let Some(from) = policy.flows.violation(&touched, to) {
+                let cid = correlation_id();
+                let mut detail = ctx.detail().unwrap_or_default();
+                detail.insert("script".into(), script.audit_detail());
+                detail.insert("flow".into(), json!({"from": from, "to": to}));
+                ctx.audit(Record {
+                    decision: "DENY".into(),
+                    method: Some(method.clone()),
+                    tool: Some(tool.clone()),
+                    reason: Some(format!(
+                        "flow from {from} to {to} is denied within a script"
+                    )),
+                    correlation_id: Some(cid.clone()),
+                    detail: Some(detail),
+                    ..Default::default()
+                })
+                .await?;
+                return Ok(match &request_id {
+                    None => empty(StatusCode::ACCEPTED),
+                    Some(id) => {
+                        let mut denial = deny_result(id.clone(), &cid);
+                        if modern {
+                            denial["result"]["resultType"] = json!("complete");
+                        }
+                        json_response(StatusCode::OK, &denial)
+                    }
+                });
+            }
+        }
         let verifier = state.config.verifier.clone();
         let (call_tool, call_args, call_headers, call_endpoint, call_policy) = (
             tool.clone(),
@@ -1128,6 +1201,9 @@ async fn handle_inner(
         }
         if let Some(consumed) = decision.as_ref().and_then(|d| d.approval.as_ref()) {
             detail.insert("approval".into(), consumed.audit_detail());
+        }
+        if let Some(script) = &script {
+            detail.insert("script".into(), script.audit_detail());
         }
         if let Some(warning) = state
             .config
@@ -1202,6 +1278,14 @@ async fn handle_inner(
             });
         }
         if let Some(decision) = decision.as_ref().filter(|d| d.allow) {
+            if let (Some(script), Some(name)) = (&script, endpoint.as_deref()) {
+                state.scripts.lock().expect("scripts lock").touch(
+                    &owner,
+                    &script.run,
+                    name,
+                    Instant::now(),
+                );
+            }
             forward_headers.principal = Some((decision.issuer.clone(), decision.subject.clone()));
             approved = decision.approval.clone().map(|a| (tool.clone(), a));
         }
@@ -1231,7 +1315,19 @@ async fn handle_inner(
         {
             return Err(Error::value("unpaired upstream catalog response"));
         }
-        let allowed = policy.tools_for(endpoint.as_deref());
+        let mut allowed = policy.tools_for(endpoint.as_deref());
+        if policy.tools_list == "granted" {
+            // Fail closed: without a valid mandate, nothing is listed.
+            let verifier = state.config.verifier.clone();
+            let (incoming, list_policy) = (headers.clone(), policy.clone());
+            let granted = tokio::task::spawn_blocking(move || {
+                verifier.granted_tools(&incoming, &list_policy)
+            })
+            .await
+            .map_err(|e| Error::runtime(e.to_string()))?
+            .unwrap_or_default();
+            allowed.retain(|name| granted.iter().any(|g| g == name));
+        }
         let aliases: HashMap<String, String> = policy
             .tools
             .iter()
@@ -1434,6 +1530,78 @@ async fn handle_inner(
         return Ok(reply);
     }
     Ok(relay(&response, None))
+}
+
+/// `tokencrumb/script`: put a Code Mode script's full code in the signed audit, under a
+/// valid mandate, and answer locally. Nothing reaches the upstream.
+async fn register_script(
+    ctx: &Ctx<'_>,
+    headers: &Headers,
+    message: &Map<String, Value>,
+    request_id: Option<Value>,
+    modern: bool,
+) -> Result<Response> {
+    let method = scripts::REGISTER_METHOD;
+    let reply_id = request_id.clone().unwrap_or(Value::Null);
+    let refuse = |reason: &'static str| {
+        let reply_id = reply_id.clone();
+        async move {
+            let cid = correlation_id();
+            ctx.deny(method, reason, Some(&cid), ctx.detail()).await?;
+            Ok::<Response, Error>(json_response(
+                StatusCode::OK,
+                &error_response(reply_id, INVALID_REQUEST, "invalid request", &cid),
+            ))
+        }
+    };
+    let Some(id) = request_id else {
+        return refuse("script registration must be a request").await;
+    };
+    let verifier = ctx.state.config.verifier.clone();
+    let incoming = headers.clone();
+    let owner = tokio::task::spawn_blocking(move || verifier.session_owner(&incoming))
+        .await
+        .map_err(|e| Error::runtime(e.to_string()))?;
+    if owner.is_err() {
+        return refuse("script registration requires a valid mandate").await;
+    }
+    let params = message.get("params").and_then(Value::as_object);
+    let field = |name: &str| {
+        params
+            .and_then(|p| p.get(name))
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+    };
+    let (Some(run), Some(hash), Some(code)) = (field("run"), field("hash"), field("code")) else {
+        return refuse("script registration requires run, hash and code").await;
+    };
+    let Some(script) = ScriptId::new(&run, &hash) else {
+        return refuse("malformed script run or hash").await;
+    };
+    if code.len() > scripts::MAX_CODE {
+        return refuse("script too large").await;
+    }
+    if format!("sha256:{}", crate::canonical::sha256_hex(code.as_bytes())) != script.hash {
+        return refuse("script hash does not match its code").await;
+    }
+    let mut detail = ctx.detail().unwrap_or_default();
+    detail.insert("script".into(), script.audit_detail());
+    detail.insert("code".into(), json!(code));
+    ctx.audit(Record {
+        decision: "SCRIPT".into(),
+        method: Some(method.into()),
+        detail: Some(detail),
+        ..Default::default()
+    })
+    .await?;
+    let mut result = json!({});
+    if modern {
+        result["resultType"] = json!("complete");
+    }
+    Ok(json_response(
+        StatusCode::OK,
+        &json!({"jsonrpc": "2.0", "id": id, "result": result}),
+    ))
 }
 
 /// The body and headers sent upstream. In the `initialize` era the body is unchanged and
@@ -1757,6 +1925,7 @@ pub fn create_app(config: ProxyConfig) -> Result<Router> {
         eras: Mutex::new(HashMap::new()),
         param_headers: Mutex::new(HashMap::new()),
         capacity_logged: Mutex::new(None),
+        scripts: Mutex::new(Scripts::default()),
     });
     let mut router = Router::new();
     for name in names {

@@ -9,6 +9,7 @@
 //! as `error: <message>` on stderr with exit code 1, usage errors with exit code 2.
 
 mod approve;
+mod codemode;
 mod render;
 mod wrap;
 
@@ -333,6 +334,40 @@ pub enum Command {
         /// receipt from `<dir>/receipts` to the identical replay, move it to `<dir>/used`
         #[arg(long)]
         approval_dir: Option<String>,
+    },
+    /// Code Mode: one stdio MCP entry for several gateway services, exposing `search`
+    /// and `execute` (model-written JavaScript run in a local sandbox). Every call a
+    /// script makes is signed and sent to its service's gateway endpoint.
+    CodeMode {
+        /// A gateway service as name=url, e.g. kdrive=https://gw/mcp/kdrive (repeatable)
+        #[arg(long = "service", required = true)]
+        services: Vec<String>,
+        /// Biscuit token file or base64
+        #[arg(long)]
+        token: String,
+        /// Agent private key (enables 3b/3a signing)
+        #[arg(long)]
+        agent_key: Option<String>,
+        /// Override agent id (default: from token)
+        #[arg(long)]
+        agent_id: Option<String>,
+        #[arg(long)]
+        passphrase: Option<String>,
+        /// CA bundle (PEM) trusted for the gateway's TLS cert
+        #[arg(long)]
+        ca: Option<String>,
+        /// Human approval directory, as for client-wrap
+        #[arg(long)]
+        approval_dir: Option<String>,
+        /// Most tool calls one script may make
+        #[arg(long, default_value_t = 50)]
+        max_calls: usize,
+        /// Wall-clock limit of one script, in seconds
+        #[arg(long, default_value_t = 60)]
+        timeout_seconds: u64,
+        /// Most characters of a script's result returned to the model
+        #[arg(long, default_value_t = 24_000)]
+        max_output: usize,
     },
     /// Show a held call's request, recompute its hashes and sign a single-use
     /// approval receipt for exactly that call (approver side).
@@ -815,6 +850,29 @@ fn run(command: Command) -> Outcome {
             ca.as_deref(),
             approval_dir.as_deref(),
         ),
+        Command::CodeMode {
+            services,
+            token,
+            agent_key,
+            agent_id,
+            passphrase,
+            ca,
+            approval_dir,
+            max_calls,
+            timeout_seconds,
+            max_output,
+        } => codemode::code_mode(codemode::Options {
+            services: &services,
+            token: &token,
+            agent_key: agent_key.as_deref(),
+            agent_id: agent_id.as_deref(),
+            passphrase: passphrase.as_deref(),
+            ca: ca.as_deref(),
+            approval_dir: approval_dir.as_deref(),
+            max_calls,
+            timeout_seconds,
+            max_output,
+        }),
         Command::Approve {
             request,
             key,

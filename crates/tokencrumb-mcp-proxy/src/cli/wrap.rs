@@ -17,7 +17,7 @@ use super::render::{Stream, paint};
 use super::{Exit, Outcome, fail, load_private, read_token_arg, status};
 
 /// One line read from the client.
-enum Line {
+pub(super) enum Line {
     Eof,
     /// Longer than [`MAX_REQUEST`] characters; drained without being buffered.
     TooLarge,
@@ -30,7 +30,7 @@ enum Line {
 ///
 /// The limit counts characters, newline included, as the former implementation did;
 /// four bytes per character bound the prefix that has to be held to decide.
-fn read_line(input: &mut impl BufRead) -> std::io::Result<Line> {
+pub(super) fn read_line(input: &mut impl BufRead) -> std::io::Result<Line> {
     let cap = 4 * (MAX_REQUEST + 2);
     let mut buffer: Vec<u8> = Vec::new();
     let mut overflow = false;
@@ -71,13 +71,13 @@ fn read_line(input: &mut impl BufRead) -> std::io::Result<Line> {
 
 /// The mandate file, watched so a renewed mandate is picked up by a running client
 /// (Claude Desktop launches `client-wrap` once and keeps it for the whole session).
-struct TokenFile {
+pub(super) struct TokenFile {
     path: std::path::PathBuf,
     stamp: Option<std::time::SystemTime>,
 }
 
 impl TokenFile {
-    fn watch(token: &str) -> Option<Self> {
+    pub(super) fn watch(token: &str) -> Option<Self> {
         let path = Path::new(token);
         path.is_file().then(|| Self {
             path: path.to_path_buf(),
@@ -90,7 +90,7 @@ impl TokenFile {
     }
 
     /// The new mandate when the file changed since the last look.
-    fn changed(&mut self) -> Option<String> {
+    pub(super) fn changed(&mut self) -> Option<String> {
         let stamp = Self::stamp(&self.path);
         if stamp.is_none() || stamp == self.stamp {
             return None;

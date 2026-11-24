@@ -4,6 +4,17 @@
 
 ### Added
 
+- Add `code-mode`, the client side of Code Mode ([ADR 0007](docs/adr/0007-code-mode.md)).
+  - One stdio entry for several gateway services, exposing `search` and `execute`.
+  - Model-written JavaScript runs in an embedded QuickJS sandbox: no file system, network, timers or modules; memory, time, call count and output size are bounded.
+  - Each call a script makes is a `tools/call` with a fresh agent attestation, sent to its service's endpoint, so policy, budget, approval and audit apply per call, unchanged.
+  - A refused call raises a catchable exception. A held call stops the script and returns the calls already made with the request to approve.
+- Add the gateway side of Code Mode.
+  - `tools_list: granted` lists only the tools the presented mandate grants, and nothing without a valid mandate.
+  - `flows` (`default`, `allow`, `deny` pairs of upstreams) refuses a call within a script after a call to an upstream whose data may not reach it.
+  - The `tokencrumb/script` request records a script's full code in the audit as a `SCRIPT` entry, after checking its hash. It is answered locally and never forwarded.
+  - Calls tagged with `TokenCrumb-Script-Run` and `TokenCrumb-Script-Hash` carry them in `detail.script`.
+
 - Support MCP 2026-07-28 next to `2025-06-18` and `2025-11-25` (dual-era): `mcp.spec_version` accepts a list (a single string remains valid), the era of each agent request and of each upstream (`server/discover` probe) is detected, `initialize`-era agents are translated for 2026-07-28 upstreams, and 2026-07-28 agents meeting an `initialize`-era upstream receive `UnsupportedProtocolVersion` to fall back.
 - Check `MCP-Protocol-Version`, `Mcp-Method`, `Mcp-Name` and `Mcp-Param-*` against the body of 2026-07-28 requests before any decision (HTTP 400, `HeaderMismatch`), and recompute them from the forwarded body, including after `upstream_tool` renames. These names are reserved for upstream credentials.
 - Relay `server/discover` reduced to `tools`; mark filtered 2026-07-28 tool lists `cacheScope: "private"` with a short `ttlMs`; add `resultType` to every gateway result in 2026-07-28 mode; empty the per-request client capabilities; refuse multi round-trip requests and tasks with code −31001.
